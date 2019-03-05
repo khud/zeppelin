@@ -1278,4 +1278,9 @@ public class OldSparkInterpreter extends AbstractSparkInterpreter {
     }
     return securityManager;
   }
+
+  @Override
+  public Throwable getLastException() {
+    return (Throwable)getValue("lastException");
+  }
 }

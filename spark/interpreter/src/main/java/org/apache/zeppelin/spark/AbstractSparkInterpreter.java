@@ -54,6 +54,8 @@ public abstract class AbstractSparkInterpreter extends AbstractInterpreter {
 
   public abstract boolean isUnsupportedSparkVersion();
 
+  public abstract Throwable getLastException();
+
   public void setParentSparkInterpreter(SparkInterpreter parentSparkInterpreter) {
     this.parentSparkInterpreter = parentSparkInterpreter;
   }

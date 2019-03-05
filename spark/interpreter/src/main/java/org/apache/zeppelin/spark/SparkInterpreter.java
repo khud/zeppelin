@@ -28,6 +28,7 @@ import org.apache.zeppelin.interpreter.thrift.InterpreterCompletion;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.*;
 import java.util.List;
 import java.util.Properties;
 
@@ -74,7 +75,16 @@ public class SparkInterpreter extends AbstractSparkInterpreter {
   @Override
   public InterpreterResult internalInterpret(String st, InterpreterContext context)
       throws InterpreterException {
-    return delegation.interpret(st, context);
+    InterpreterResult result = delegation.interpret(st, context);
+    if (result.code() == InterpreterResult.Code.ERROR) {
+      Throwable lastException = getLastException();
+      if (lastException != null) {
+        PrintWriter out = new PrintWriter(new StringWriter(), true);
+        lastException.printStackTrace(out);
+        result.add(InterpreterResult.Type.TEXT, out.toString());
+      }
+    }
+    return result;
   }
 
   @Override
@@ -159,5 +169,10 @@ public class SparkInterpreter extends AbstractSparkInterpreter {
 
   public static boolean useSparkSubmit() {
     return null != System.getenv("SPARK_SUBMIT");
+  }
+
+  @Override
+  public Throwable getLastException() {
+    return delegation.getLastException();
   }
 }

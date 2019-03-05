@@ -256,4 +256,9 @@ public class NewSparkInterpreter extends AbstractSparkInterpreter {
   public boolean isUnsupportedSparkVersion() {
     return enableSupportedVersionCheck  && sparkVersion.isUnsupportedVersion();
   }
+
+  @Override
+  public Throwable getLastException() {
+    return innerInterpreter.lastException();
+  }
 }

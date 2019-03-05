@@ -98,4 +98,9 @@ class SparkScala210Interpreter(override val conf: SparkConf,
     }
   }
 
+  override def lastException(): Throwable = {
+    // intp is private[repl], so we use deprecated but public method to access IMain
+    val lastException = sparkILoop.interpreter.valueOfTerm("lastException")
+    lastException.orNull.asInstanceOf[Throwable]
+  }
 }

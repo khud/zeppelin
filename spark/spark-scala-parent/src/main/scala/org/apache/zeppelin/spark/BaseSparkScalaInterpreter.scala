@@ -135,6 +135,8 @@ abstract class BaseSparkScalaInterpreter(val conf: SparkConf,
 
   protected def scalaInterpret(code: String): scala.tools.nsc.interpreter.IR.Result
 
+  protected def lastException(): Throwable
+
   protected def completion(buf: String,
                            cursor: Int,
                            context: InterpreterContext): java.util.List[InterpreterCompletion] = {
