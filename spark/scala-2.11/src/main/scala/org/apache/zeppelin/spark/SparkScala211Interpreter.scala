@@ -18,15 +18,11 @@
 package org.apache.zeppelin.spark
 
 import java.io.{BufferedReader, File}
-import java.net.URLClassLoader
 import java.nio.file.{Files, Paths}
 
 import org.apache.spark.SparkConf
-import org.apache.zeppelin.interpreter.thrift.InterpreterCompletion
 import org.apache.zeppelin.interpreter.util.InterpreterOutputStream
-import org.apache.zeppelin.interpreter.{InterpreterContext, InterpreterResult}
-import org.slf4j.LoggerFactory
-import org.slf4j.Logger
+import org.slf4j.{Logger, LoggerFactory}
 
 import scala.tools.nsc.Settings
 import scala.tools.nsc.interpreter._
@@ -76,7 +72,7 @@ class SparkScala211Interpreter(override val conf: SparkConf,
     }
     sparkILoop = new ILoop(None, replOut)
     sparkILoop.settings = settings
-    sparkILoop.createInterpreter()
+    sparkILoop.intp = new FixedValueOfTermFromScala2_12(sparkILoop)
 
     val in0 = getField(sparkILoop, "scala$tools$nsc$interpreter$ILoop$$in0").asInstanceOf[Option[BufferedReader]]
     val reader = in0.fold(sparkILoop.chooseReader(settings))(r => SimpleReader(r, replOut, interactive = true))
@@ -106,6 +102,10 @@ class SparkScala211Interpreter(override val conf: SparkConf,
   def scalaInterpret(code: String): scala.tools.nsc.interpreter.IR.Result =
     sparkILoop.interpret(code)
 
+  override def lastException(): Throwable = {
+    val lastException = sparkILoop.intp.valueOfTerm("lastException")
+    lastException.orNull.asInstanceOf[Throwable]
+  }
 }
 
 private object SparkScala211Interpreter {
@@ -127,8 +127,7 @@ private object SparkScala211Interpreter {
     */
   private def loopPostInit(interpreter: SparkScala211Interpreter): Unit = {
     import StdReplTags._
-    import scala.reflect.classTag
-    import scala.reflect.io
+    import scala.reflect.{classTag, io}
 
     val sparkILoop = interpreter.sparkILoop
     val intp = sparkILoop.intp
