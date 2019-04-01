@@ -80,7 +80,7 @@ public class SparkInterpreter extends AbstractSparkInterpreter {
       Throwable lastException = getLastException();
       if (lastException != null) {
         StringWriter sw = new StringWriter();
-        PrintWriter out = new PrintWriter(new StringWriter(), true);
+        PrintWriter out = new PrintWriter(sw, true);
         lastException.printStackTrace(out);
         result.add(InterpreterResult.Type.TEXT, sw.toString());
       }
