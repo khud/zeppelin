@@ -55,7 +55,8 @@ public class InterpreterResult implements Serializable, JsonSerializable {
     IMG,
     SVG,
     NULL,
-    NETWORK
+    NETWORK,
+    DATA
   }
 
   Code code;
