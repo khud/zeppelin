@@ -1280,7 +1280,7 @@ public class OldSparkInterpreter extends AbstractSparkInterpreter {
   }
 
   @Override
-  public Throwable getLastException() {
-    return (Throwable)getValue("lastException");
+  public VariableView getVariableView() {
+    return null; // FIXME
   }
 }

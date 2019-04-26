@@ -24,7 +24,6 @@ import org.apache.spark.SparkConf;
 import org.apache.spark.SparkContext;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SQLContext;
-import org.apache.zeppelin.interpreter.BaseZeppelinContext;
 import org.apache.zeppelin.interpreter.InterpreterContext;
 import org.apache.zeppelin.interpreter.InterpreterException;
 import org.apache.zeppelin.interpreter.InterpreterHookRegistry;
@@ -258,7 +257,7 @@ public class NewSparkInterpreter extends AbstractSparkInterpreter {
   }
 
   @Override
-  public Throwable getLastException() {
-    return innerInterpreter.lastException();
+  public VariableView getVariableView() {
+    return innerInterpreter.variableView();
   }
 }

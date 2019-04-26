@@ -139,7 +139,7 @@ abstract class BaseSparkScalaInterpreter(val conf: SparkConf,
 
   protected def scalaInterpret(code: String): scala.tools.nsc.interpreter.IR.Result
 
-  protected def lastException(): Throwable
+  protected def variableView(): VariableView
 
   protected def completion(buf: String,
                            cursor: Int,

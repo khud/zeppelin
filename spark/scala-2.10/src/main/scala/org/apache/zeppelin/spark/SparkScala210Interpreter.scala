@@ -28,9 +28,6 @@ import org.apache.zeppelin.interpreter.util.InterpreterOutputStream
 import org.apache.zeppelin.interpreter.{InterpreterContext, InterpreterResult}
 import org.slf4j.{Logger, LoggerFactory}
 
-import scala.tools.nsc.Settings
-import scala.tools.nsc.interpreter._
-
 /**
   * SparkInterpreter for scala-2.10
   */
@@ -98,9 +95,5 @@ class SparkScala210Interpreter(override val conf: SparkConf,
     }
   }
 
-  override def lastException(): Throwable = {
-    // intp is private[repl], so we use deprecated but public method to access IMain
-    val lastException = sparkILoop.interpreter.valueOfTerm("lastException")
-    lastException.orNull.asInstanceOf[Throwable]
-  }
+//  override def variableView(): VariableView = null
 }

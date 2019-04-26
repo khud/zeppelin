@@ -24,6 +24,7 @@ import org.apache.spark.SparkConf
 import org.apache.zeppelin.interpreter.util.InterpreterOutputStream
 import org.slf4j.{Logger, LoggerFactory}
 
+import scala.collection.mutable
 import scala.tools.nsc.Settings
 import scala.tools.nsc.interpreter._
 
@@ -42,6 +43,30 @@ class SparkScala211Interpreter(override val conf: SparkConf,
   private var sparkILoop: ILoop = _
 
   override val interpreterOutput = new InterpreterOutputStream(LOGGER)
+
+  private val env = new Scala211VariableView(100, 200,
+    blackList = List("$intp", "sc", "spark", "sqlContext", "z"),
+    expandMethods = List("org.apache.spark.sql.DataFrame.schema")) {
+    private val cache = mutable.Map[Any, String]()
+
+    override def variables(): List[String] = sparkILoop.intp.definedSymbolList.filter { x => !x.isClass }.map(_.name.toString)
+
+    override def valueOfTerm(id: String): Option[Any] = sparkILoop.intp.valueOfTerm(id)
+
+    override def typeOfExpression(obj: Any, expr: String): String = {
+      if (annotateTypes()) {
+        if (obj != null && cache.contains(obj)) {
+          cache(obj)
+        } else {
+          val tpe = sparkILoop.intp.typeOfExpression(expr, silent = true).toString()
+          cache.put(obj, tpe)
+          tpe
+        }
+      } else null
+    }
+
+    override def annotateTypes(): Boolean = false
+  }
 
   override def open(): Unit = {
     super.open()
@@ -102,10 +127,7 @@ class SparkScala211Interpreter(override val conf: SparkConf,
   def scalaInterpret(code: String): scala.tools.nsc.interpreter.IR.Result =
     sparkILoop.interpret(code)
 
-  override def lastException(): Throwable = {
-    val lastException = sparkILoop.intp.valueOfTerm("lastException")
-    lastException.orNull.asInstanceOf[Throwable]
-  }
+  override def variableView(): VariableView = env
 }
 
 private object SparkScala211Interpreter {

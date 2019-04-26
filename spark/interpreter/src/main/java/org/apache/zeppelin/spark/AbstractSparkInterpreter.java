@@ -21,8 +21,6 @@ import org.apache.spark.SparkContext;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SQLContext;
 import org.apache.zeppelin.interpreter.AbstractInterpreter;
-import org.apache.zeppelin.interpreter.Interpreter;
-import org.apache.zeppelin.interpreter.InterpreterContext;
 
 import java.util.Properties;
 
@@ -54,7 +52,7 @@ public abstract class AbstractSparkInterpreter extends AbstractInterpreter {
 
   public abstract boolean isUnsupportedSparkVersion();
 
-  public abstract Throwable getLastException();
+  public abstract VariableView getVariableView();
 
   public void setParentSparkInterpreter(SparkInterpreter parentSparkInterpreter) {
     this.parentSparkInterpreter = parentSparkInterpreter;

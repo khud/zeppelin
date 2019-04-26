@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 
@@ -76,18 +77,29 @@ public class SparkInterpreter extends AbstractSparkInterpreter {
   public InterpreterResult internalInterpret(String st, InterpreterContext context)
       throws InterpreterException {
     InterpreterResult result = delegation.interpret(st, context);
-    if (result.code() == InterpreterResult.Code.ERROR) {
-      Throwable lastException = getLastException();
-      if (lastException != null) {
-        StringWriter writer = new StringWriter();
-        writer.append("{ lastException: '");
-        PrintWriter out = new PrintWriter(writer, true);
-        lastException.printStackTrace(out);
-        writer.append("' }");
-        result.add(InterpreterResult.Type.DATA, writer.toString());
-      }
+    try {
+      String json = delegation.getVariableView().toJson();
+      log(json);
+    } catch (Exception e) {
+      ByteArrayOutputStream baos = new ByteArrayOutputStream();
+      PrintStream ps = new PrintStream(baos, true);
+      e.printStackTrace(ps);
+      String content = new String(baos.toByteArray());
+      log(content);
+      ps.close();
     }
     return result;
+  }
+
+  void log(String str) {
+    try {
+      BufferedWriter out = new BufferedWriter(new FileWriter("/tmp/zep.out"));
+      out.write(str);
+      out.write("\n");
+      out.close();
+    } catch(IOException e) {
+
+    }
   }
 
   @Override
@@ -175,7 +187,7 @@ public class SparkInterpreter extends AbstractSparkInterpreter {
   }
 
   @Override
-  public Throwable getLastException() {
-    return delegation.getLastException();
+  public VariableView getVariableView() {
+    return delegation.getVariableView();
   }
 }
