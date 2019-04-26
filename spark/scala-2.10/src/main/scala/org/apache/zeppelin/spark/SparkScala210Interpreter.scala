@@ -28,6 +28,9 @@ import org.apache.zeppelin.interpreter.util.InterpreterOutputStream
 import org.apache.zeppelin.interpreter.{InterpreterContext, InterpreterResult}
 import org.slf4j.{Logger, LoggerFactory}
 
+import scala.tools.nsc.Settings
+import scala.tools.nsc.interpreter._
+
 /**
   * SparkInterpreter for scala-2.10
   */
@@ -95,5 +98,5 @@ class SparkScala210Interpreter(override val conf: SparkConf,
     }
   }
 
-//  override def variableView(): VariableView = null
+  override def variableView(): VariableView = null
 }

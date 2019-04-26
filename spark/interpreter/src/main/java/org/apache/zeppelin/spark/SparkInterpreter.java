@@ -77,29 +77,12 @@ public class SparkInterpreter extends AbstractSparkInterpreter {
   public InterpreterResult internalInterpret(String st, InterpreterContext context)
       throws InterpreterException {
     InterpreterResult result = delegation.interpret(st, context);
-    try {
+    VariableView env = delegation.getVariableView();
+    if (env != null) {
       String json = delegation.getVariableView().toJson();
-      log(json);
-    } catch (Exception e) {
-      ByteArrayOutputStream baos = new ByteArrayOutputStream();
-      PrintStream ps = new PrintStream(baos, true);
-      e.printStackTrace(ps);
-      String content = new String(baos.toByteArray());
-      log(content);
-      ps.close();
+      result.add(InterpreterResult.Type.DATA, json);
     }
     return result;
-  }
-
-  void log(String str) {
-    try {
-      BufferedWriter out = new BufferedWriter(new FileWriter("/tmp/zep.out"));
-      out.write(str);
-      out.write("\n");
-      out.close();
-    } catch(IOException e) {
-
-    }
   }
 
   @Override
