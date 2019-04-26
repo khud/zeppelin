@@ -45,8 +45,10 @@ class SparkScala211Interpreter(override val conf: SparkConf,
   override val interpreterOutput = new InterpreterOutputStream(LOGGER)
 
   private val env = new Scala211VariableView(100, 200,
-    blackList = List("$intp", "sc", "spark", "sqlContext", "z"),
-    expandMethods = List("org.apache.spark.sql.DataFrame.schema")) {
+    blackList = conf.get("zeppelin.spark.variables.blacklist",
+      "$intp,sc,spark,sqlContext,z").split(",").toList,
+    expandMethods = conf.get("zeppelin.spark.variables.lookInto",
+      "org.apache.spark.sql.DataFrame.schema").split(",").toList) {
     private val cache = mutable.Map[Any, String]()
 
     override def variables(): List[String] = sparkILoop.intp.definedSymbolList.filter { x => !x.isClass }.map(_.name.toString)
@@ -65,7 +67,7 @@ class SparkScala211Interpreter(override val conf: SparkConf,
       } else null
     }
 
-    override def annotateTypes(): Boolean = false
+    override def annotateTypes(): Boolean = conf.get("zeppelin.spark.variables.enableTypeInference", "false").toBoolean
   }
 
   override def open(): Unit = {
