@@ -102,6 +102,27 @@
         "defaultValue": true,
         "description": "Whether show the spark deprecated message",
         "type": "checkbox"
+      },
+      "zeppelin.spark.variables.blacklist": {
+        "envName": null,
+        "propertyName": "zeppelin.spark.variables.blacklist",
+        "defaultValue": "$intp,sc,spark,sqlContext,z",
+        "description": "Variable which won't be shown in variable view",
+        "type": "string"
+      },
+      "zeppelin.spark.variables.lookInto": {
+        "envName": null,
+        "propertyName": "zeppelin.spark.variables.lookInto",
+        "defaultValue": "org.apache.spark.sql.DataFrame.schema",
+        "description": "Methods one want to call to show result in variable view",
+        "type": "textarea"
+      },
+      "zeppelin.spark.variables.enableTypeInference": {
+        "envName": null,
+        "propertyName": "zeppelin.spark.variables.enableTypeInference",
+        "defaultValue": false,
+        "description": "Enables type information in variable view",
+        "type": "checkbox"
       }
     },
     "editor": {
