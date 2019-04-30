@@ -48,7 +48,7 @@ class SparkScala211Interpreter(override val conf: SparkConf,
     blackList = conf.get("zeppelin.spark.variables.blacklist",
       "$intp,sc,spark,sqlContext,z").split(",").toList,
     expandMethods = conf.get("zeppelin.spark.variables.lookInto",
-      "org.apache.spark.sql.DataFrame.schema").split(",").toList) {
+      "org.apache.spark.sql.Dataset.schema").split(",").toList) {
     private val cache = mutable.Map[Any, String]()
 
     override def variables(): List[String] = sparkILoop.intp.definedSymbolList.filter { x => !x.isClass }.map(_.name.toString)

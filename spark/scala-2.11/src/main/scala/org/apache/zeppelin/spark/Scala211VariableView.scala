@@ -146,7 +146,7 @@ abstract class Scala211VariableView(arrayLimit: Int,
       NO_ACCESS
     } else if (symbol.isMethod) {
       val base = instanceMirror.symbol.baseClasses.map { x => x.fullName }
-      if (symbol.asMethod.paramLists.nonEmpty && symbol.asMethod.paramLists.head.isEmpty) {
+      if (symbol.asMethod.paramLists.isEmpty || (symbol.asMethod.paramLists.nonEmpty && symbol.asMethod.paramLists.head.isEmpty)) {
         val fullName = base.map { x => x + "." + symbol.name.toString }
         val intersection = expandMethods.intersect(fullName)
         if (intersection.nonEmpty) {
