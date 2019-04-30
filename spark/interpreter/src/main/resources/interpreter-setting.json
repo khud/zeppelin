@@ -113,7 +113,7 @@
       "zeppelin.spark.variables.lookInto": {
         "envName": null,
         "propertyName": "zeppelin.spark.variables.lookInto",
-        "defaultValue": "org.apache.spark.sql.DataFrame.schema",
+        "defaultValue": "org.apache.spark.sql.Dataset.schema",
         "description": "Methods one want to call to show result in variable view",
         "type": "textarea"
       },
