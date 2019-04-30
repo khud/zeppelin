@@ -127,7 +127,7 @@ abstract class Scala211VariableView(arrayLimit: Int,
               val subtree = toJson1(data, deep - 1)
               tree.put("value", if (subtree.isEmpty) asString(data.value) else subtree)
             }
-            root.put(symbol.name.toString, tree)
+            root.put(symbol.name.toString.trim, tree)
           }
       }
       root
