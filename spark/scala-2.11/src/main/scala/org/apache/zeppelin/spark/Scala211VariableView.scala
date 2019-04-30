@@ -48,7 +48,7 @@ abstract class Scala211VariableView(arrayLimit: Int,
       val out = new PrintWriter(new StringWriter())
       e.printStackTrace(out)
       out.toString
-    case _ => if (obj == null) "null" else obj.toString.take(stringLimit)
+    case _ => if (obj == null) null else obj.toString.take(stringLimit)
   }
 
   def length(obj: Any): Int = obj match {
