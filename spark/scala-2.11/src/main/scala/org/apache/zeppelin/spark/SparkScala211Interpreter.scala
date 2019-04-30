@@ -55,12 +55,12 @@ class SparkScala211Interpreter(override val conf: SparkConf,
 
     override def valueOfTerm(id: String): Option[Any] = sparkILoop.intp.valueOfTerm(id)
 
-    override def typeOfExpression(obj: Any, expr: String): String = {
+    override def typeOfTerm(obj: Any, id: String): String = {
       if (annotateTypes()) {
         if (obj != null && cache.contains(obj)) {
           cache(obj)
         } else {
-          val tpe = sparkILoop.intp.typeOfExpression(expr, silent = true).toString()
+          val tpe = sparkILoop.intp.typeOfExpression(id, silent = true).toString()
           cache.put(obj, tpe)
           tpe
         }

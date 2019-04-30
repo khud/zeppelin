@@ -62,7 +62,7 @@ abstract class Scala211VariableView(arrayLimit: Int,
     tpe != null && stopTypes.exists { x => tpe.matches(x) }
   }
 
-  def stopHere(deep: Int, data: Data): Boolean = {
+  def stopHere(deep: Int, data: Node): Boolean = {
     if (data.value == null) true else {
       val className = data.value.getClass.getCanonicalName
       if (className == null ||
@@ -94,18 +94,18 @@ abstract class Scala211VariableView(arrayLimit: Int,
           else
             tree.put("value", json)
         }
-        tree.put("type", typeOfExpression(value, term))
+        tree.put("type", typeOfTerm(value, term))
         result.put(term, tree)
     }
     result
   }
 
   override def toJson(obj: Any, path: String, deep:  Int): JSONObject = {
-    val data = Data(isAccessible = true, obj, typeOfExpression(obj, path), path)
+    val data = Node(isAccessible = true, isLazy = false, obj, typeOfTerm(obj, path), path)
     toJson1(data, deep)
   }
 
-  def toJson1(objData: Data, deep: Int): JSONObject = {
+  def toJson1(objData: Node, deep: Int): JSONObject = {
     val root = new JSONObject()
     if (stopHere(deep, objData)) {
       root
@@ -119,6 +119,7 @@ abstract class Scala211VariableView(arrayLimit: Int,
           if (data.isAccessible) {
             val tree = new JSONObject()
             tree.put("type", data.tpe)
+            if (data.isLazy) tree.put("lazy", data.isLazy)
             val len = length(data.value)
             if (len >= 0) {
               tree.put("length", len)
@@ -134,11 +135,12 @@ abstract class Scala211VariableView(arrayLimit: Int,
     }
   }
 
-  case class Data(isAccessible: Boolean, value: Any, tpe: String, path: String)
+  case class Node(isAccessible: Boolean, isLazy: Boolean, value: Any, tpe: String, path: String)
 
-  val NO_ACCESS = Data(isAccessible = false, null, null, null)
+  val NO_ACCESS = Node(isAccessible = false, isLazy = false, null, null, null)
 
-  def get(instanceMirror: ru.InstanceMirror, symbol: ru.Symbol, path: String): Data = {
+  // FIXME: refactor it
+  def get(instanceMirror: ru.InstanceMirror, symbol: ru.Symbol, path: String): Node = {
     if (symbol.isTerm && !symbol.asTerm.getter.isPublic) NO_ACCESS else
     if (symbol.isClass) {
       NO_ACCESS
@@ -151,7 +153,7 @@ abstract class Scala211VariableView(arrayLimit: Int,
           val f = instanceMirror.reflectMethod(symbol.asMethod)
           val result = f.apply()
           val tpe = symbol.asMethod.returnType.typeSymbol.fullName
-          Data(isAccessible = true, result, tpe, s"$path.${symbol.asTerm.name}")
+          Node(isAccessible = true, isLazy = symbol.asTerm.isLazy, result, tpe, s"$path.${symbol.asTerm.name}")
         } else NO_ACCESS
       } else NO_ACCESS
     } else if (symbol.isTerm) {
@@ -160,13 +162,13 @@ abstract class Scala211VariableView(arrayLimit: Int,
       } catch {
         case _: Throwable => null
       }
-      val fieldPath = s"$path.${symbol.asTerm.name}"
+      val fieldPath = s"$path.${symbol.asTerm.name.toString.trim}"
       if (f == null)
         NO_ACCESS
       else {
         val value = f.get
-        val tpe = typeOfExpression(value, fieldPath)
-        Data(isAccessible = tpe != "<notype>", value, tpe, fieldPath)
+        val tpe = symbol.asTerm.typeSignature.toString
+        Node(isAccessible = tpe != "<notype>", isLazy = symbol.asTerm.isLazy, value, tpe, fieldPath)
       }
     } else NO_ACCESS
   }

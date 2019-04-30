@@ -30,7 +30,7 @@ abstract class BaseVariableView(val arrayLimit: Int,
 
   def valueOfTerm(id: String): Option[Any]
 
-  def typeOfExpression(obj: Any, expr: String): String
+  def typeOfTerm(obj: Any, id: String): String
 
   override def toJson(): String =
     toJson(variables().filter { x => !blackListAsSet.contains(x) }.map { name =>
@@ -48,4 +48,3 @@ abstract class BaseVariableView(val arrayLimit: Int,
              path: String,
              deep: Int): JSONObject
 }
-
