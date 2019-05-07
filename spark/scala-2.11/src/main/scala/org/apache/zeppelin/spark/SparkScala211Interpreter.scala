@@ -44,7 +44,9 @@ class SparkScala211Interpreter(override val conf: SparkConf,
 
   override val interpreterOutput = new InterpreterOutputStream(LOGGER)
 
-  private val env = new Scala211VariableView(100, 200,
+  private val env = new Scala211VariableView(
+    arrayLimit = conf.get("zeppelin.spark.variables.takeFromCollection", "100").toInt,
+    stringLimit = conf.get("zeppelin.spark.variables.takeFromString", "400").toInt,
     blackList = conf.get("zeppelin.spark.variables.blacklist",
       "$intp,sc,spark,sqlContext,z").split(",").toList,
     expandMethods = conf.get("zeppelin.spark.variables.lookInto",
@@ -67,7 +69,7 @@ class SparkScala211Interpreter(override val conf: SparkConf,
       } else null
     }
 
-    override def annotateTypes(): Boolean = conf.get("zeppelin.spark.variables.enableTypeInference", "false").toBoolean
+    override def annotateTypes(): Boolean = conf.get("zeppelin.spark.variables.enableTypeInference", "true").toBoolean
   }
 
   override def open(): Unit = {

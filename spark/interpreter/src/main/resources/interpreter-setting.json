@@ -120,9 +120,23 @@
       "zeppelin.spark.variables.enableTypeInference": {
         "envName": null,
         "propertyName": "zeppelin.spark.variables.enableTypeInference",
-        "defaultValue": false,
+        "defaultValue": true,
         "description": "Enables type information in variable view",
         "type": "checkbox"
+      },
+      "zeppelin.spark.variables.takeFromCollection": {
+        "envName": null,
+        "propertyName": "zeppelin.spark.variables.takeFromCollection",
+        "defaultValue": 100,
+        "description": "Number elements to take from collection to display",
+        "type": "number"
+      },
+      "zeppelin.spark.variables.takeFromString": {
+        "envName": null,
+        "propertyName": "zeppelin.spark.variables.takeFromString",
+        "defaultValue": 400,
+        "description": "Number chars to take from string to display",
+        "type": "number"
       }
     },
     "editor": {

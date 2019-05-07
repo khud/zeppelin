@@ -139,38 +139,38 @@ abstract class Scala211VariableView(arrayLimit: Int,
 
   val NO_ACCESS = Node(isAccessible = false, isLazy = false, null, null, null)
 
-  // FIXME: refactor it
   def get(instanceMirror: ru.InstanceMirror, symbol: ru.Symbol, path: String): Node = {
-    if (symbol.isTerm && !symbol.asTerm.getter.isPublic) NO_ACCESS else
-    if (symbol.isClass) {
-      NO_ACCESS
-    } else if (symbol.isMethod) {
+    if (symbol.isMethod && symbol.asMethod.isPublic) {
       val base = instanceMirror.symbol.baseClasses.map { x => x.fullName }
-      if (symbol.asMethod.paramLists.isEmpty || (symbol.asMethod.paramLists.nonEmpty && symbol.asMethod.paramLists.head.isEmpty)) {
+      val method = symbol.asMethod
+      if (method.paramLists.isEmpty || (method.paramLists.nonEmpty && method.paramLists.head.isEmpty)) {
         val fullName = base.map { x => x + "." + symbol.name.toString }
         val intersection = expandMethods.intersect(fullName)
         if (intersection.nonEmpty) {
-          val f = instanceMirror.reflectMethod(symbol.asMethod)
+          val f = instanceMirror.reflectMethod(method)
           val result = f.apply()
-          val tpe = symbol.asMethod.returnType.typeSymbol.fullName
-          Node(isAccessible = true, isLazy = symbol.asTerm.isLazy, result, tpe, s"$path.${symbol.asTerm.name}")
+          val tpe = method.returnType.typeSymbol.fullName
+          Node(isAccessible = true, isLazy = method.isLazy, result, tpe, s"$path.${method.name}")
         } else NO_ACCESS
       } else NO_ACCESS
-    } else if (symbol.isTerm) {
-      val f = try {
-        instanceMirror.reflectField(symbol.asTerm)
-      } catch {
-        case _: Throwable => null
-      }
-      val fieldPath = s"$path.${symbol.asTerm.name.toString.trim}"
-      if (f == null)
-        NO_ACCESS
-      else {
-        val value = f.get
-        val tpe = symbol.asTerm.typeSignature.toString
-        Node(isAccessible = tpe != "<notype>", isLazy = symbol.asTerm.isLazy, value, tpe, fieldPath)
-      }
-    } else NO_ACCESS
+    } else {
+      if (symbol.isTerm && symbol.asTerm.getter.isPublic) {
+        val term = symbol.asTerm
+        val f = try {
+          instanceMirror.reflectField(term)
+        } catch {
+          case _: Throwable => null
+        }
+        val fieldPath = s"$path.${term.name.toString.trim}"
+        if (f == null)
+          NO_ACCESS
+        else {
+          val value = f.get
+          val tpe = term.typeSignature.toString
+          Node(isAccessible = tpe != "<notype>", isLazy = term.isLazy, value, tpe, fieldPath)
+        }
+      } else NO_ACCESS
+    }
   }
 
   def annotateTypes(): Boolean
