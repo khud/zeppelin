@@ -45,9 +45,10 @@ abstract class Scala211VariableView(arrayLimit: Int,
       sb.toString()
     case s: Seq[_] => s.view.take(math.min(s.length, arrayLimit)).mkString(",")
     case e: Throwable =>
-      val out = new PrintWriter(new StringWriter())
+      val writer = new StringWriter()
+      val out = new PrintWriter(writer)
       e.printStackTrace(out)
-      out.toString
+      writer.toString
     case _ => if (obj == null) null else obj.toString.take(stringLimit)
   }
 
