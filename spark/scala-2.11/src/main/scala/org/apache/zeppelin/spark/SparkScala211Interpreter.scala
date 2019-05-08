@@ -48,7 +48,7 @@ class SparkScala211Interpreter(override val conf: SparkConf,
     arrayLimit = conf.get("zeppelin.spark.variables.takeFromCollection", "100").toInt,
     stringLimit = conf.get("zeppelin.spark.variables.takeFromString", "400").toInt,
     blackList = conf.get("zeppelin.spark.variables.blacklist",
-      "$intp,sc,spark,sqlContext,z").split(",").toList,
+      "res0,$intp,sc,spark,sqlContext,z").split(",").toList,
     expandMethods = conf.get("zeppelin.spark.variables.lookInto",
       "org.apache.spark.sql.Dataset.schema").split(",").toList) {
     private val cache = mutable.Map[Any, String]()
