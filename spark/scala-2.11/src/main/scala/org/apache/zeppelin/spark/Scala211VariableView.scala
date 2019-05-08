@@ -22,34 +22,45 @@ import java.util
 
 import org.json._
 
+import scala.collection.mutable
+
 abstract class Scala211VariableView(arrayLimit: Int,
                                     stringLimit: Int,
                                     blackList: List[String] = List(),
                                     expandMethods: List[String] = List(),
-                                    stopTypes: List[String] = List("Int", "Long", "Double", "String")) extends BaseVariableView(arrayLimit, stringLimit, blackList, expandMethods) {
+                                    stopTypes: List[String] = List("Int", "Long", "Double", "String"),
+                                    changesOnly: Boolean = false) extends BaseVariableView(arrayLimit, stringLimit, blackList, expandMethods) {
 
   private val ru = scala.reflect.runtime.universe
   private val mirror = ru.runtimeMirror(getClass.getClassLoader)
+  private val stringsCache = mutable.Map[Any, String]()
+  private val newStringsCache = mutable.Map[Any, String]()
 
-  def asString(obj: Any): String = obj match {
-    case a: Array[_] => a.view.take(math.min(a.length, arrayLimit)).mkString(",")
-    case c: util.Collection[_] =>
-      val it = c.iterator()
-      val sb = new StringBuilder()
-      var ind = 0
-      while (it.hasNext && ind < arrayLimit) {
-        sb.append(it.next().toString)
-        ind += 1
-        if (it.hasNext && ind < arrayLimit) sb.append(',')
+  def asString(obj: Any): String = {
+    if (newStringsCache.contains(obj)) newStringsCache(obj) else {
+      val str = obj match {
+        case a: Array[_] => a.view.take(math.min(a.length, arrayLimit)).mkString(",")
+        case c: util.Collection[_] =>
+          val it = c.iterator()
+          val sb = new StringBuilder()
+          var ind = 0
+          while (it.hasNext && ind < arrayLimit) {
+            sb.append(it.next().toString)
+            ind += 1
+            if (it.hasNext && ind < arrayLimit) sb.append(',')
+          }
+          sb.toString()
+        case s: Seq[_] => s.view.take(math.min(s.length, arrayLimit)).mkString(",")
+        case e: Throwable =>
+          val writer = new StringWriter()
+          val out = new PrintWriter(writer)
+          e.printStackTrace(out)
+          writer.toString
+        case _ => if (obj == null) null else obj.toString.take(stringLimit)
       }
-      sb.toString()
-    case s: Seq[_] => s.view.take(math.min(s.length, arrayLimit)).mkString(",")
-    case e: Throwable =>
-      val writer = new StringWriter()
-      val out = new PrintWriter(writer)
-      e.printStackTrace(out)
-      writer.toString
-    case _ => if (obj == null) null else obj.toString.take(stringLimit)
+      newStringsCache.put(obj, str)
+      str
+    }
   }
 
   def length(obj: Any): Int = obj match {
@@ -80,6 +91,8 @@ abstract class Scala211VariableView(arrayLimit: Int,
   }
 
   override def toJson(env: Map[String, Any]): JSONObject = {
+    changedTerms.clear()
+
     val result = new JSONObject()
     env.foreach {
       case (term, value) =>
@@ -95,21 +108,47 @@ abstract class Scala211VariableView(arrayLimit: Int,
           else
             tree.put("value", json)
         }
-        tree.put("type", typeOfTerm(value, term))
+        val tpe = typeOfTerm(value, term)
+        tree.put("type", tpe)
+        val changed = isChanged(Node(isAccessible = true, isLazy = false, value, tpe, term))
+        if (changed) markChanged(term)
         result.put(term, tree)
     }
-    result
+
+    mergeEnv()
+    filter(result)
+  }
+
+  def mergeEnv(): Unit = {
+    env ++= newEnv
+    newEnv.clear()
+    stringsCache ++= newStringsCache
+    newStringsCache.clear()
+  }
+
+  def filter(json: JSONObject): JSONObject = {
+    if (changesOnly) {
+      val result = new JSONObject()
+      val it = json.keys()
+      while (it.hasNext) {
+        val key = it.next()
+        if (changedTerms.contains(key)) result.put(key, json.get(key))
+      }
+      result
+    } else json
   }
 
   override def toJson(obj: Any, path: String, deep:  Int): JSONObject = {
     val data = Node(isAccessible = true, isLazy = false, obj, typeOfTerm(obj, path), path)
-    toJson1(data, deep)
+    toJson1(data, deep)._1
   }
 
-  def toJson1(objData: Node, deep: Int): JSONObject = {
+  def toJson1(objData: Node, deep: Int): (JSONObject, Boolean) = {
     val root = new JSONObject()
+    val refChanged = isChanged(objData)
+    var objChanged = refChanged
     if (stopHere(deep, objData)) {
-      root
+      (root, refChanged)
     } else {
       val instanceMirror = mirror.reflect(objData.value)
       val instanceSymbol = instanceMirror.symbol
@@ -125,14 +164,51 @@ abstract class Scala211VariableView(arrayLimit: Int,
             if (len >= 0) {
               tree.put("length", len)
               tree.put("value", asString(data.value))
+              val changed = isChanged(data)
+              if (changed) tree.put("changed", changed)
             } else {
-              val subtree = toJson1(data, deep - 1)
+              val (subtree, memberChanged) = toJson1(data, deep - 1)
+              objChanged |= memberChanged
               tree.put("value", if (subtree.isEmpty) asString(data.value) else subtree)
             }
             root.put(symbol.name.toString.trim, tree)
           }
       }
-      root
+      if (objChanged) markChanged(objData.path)
+      (root, refChanged)
+    }
+  }
+
+  def markChanged(path: String): Unit = {
+    val p = path.indexOf('.')
+    val head = if (p >= 0) path.substring(0, p) else path
+    changedTerms.add(head)
+  }
+
+  private val changedTerms = mutable.Set[String]()
+  private val env = mutable.Map[String, Any]()
+  private val newEnv = mutable.Map[String, Any]()
+
+  private val valTypes: Set[String] = {
+    val l = List("Int", "Long", "Byte", "Short", "Boolean", "Char", "Float", "Double")
+    (l.map{ x => "scala." + x} ++ l).toSet
+  }
+
+  def isChanged(node: Node): Boolean  = {
+    if (!env.contains(node.path)) {
+      newEnv(node.path) = node.value
+      true
+    } else {
+      val oldValue = env(node.path)
+      newEnv(node.path) = node.value
+      node.value match {
+        case null => oldValue != null
+        case _: Array[_] | _: util.Collection[_] | _: Seq[_] =>
+          !asString(node.value).equals(stringsCache(oldValue))
+        case ref: AnyRef => if (!valTypes.contains(node.tpe)) {
+          oldValue.isInstanceOf[AnyRef] && !oldValue.asInstanceOf[AnyRef].eq(ref)
+        } else !oldValue.equals(node.value)
+      }
     }
   }
 

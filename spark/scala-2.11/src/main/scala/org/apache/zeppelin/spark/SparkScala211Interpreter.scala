@@ -45,12 +45,13 @@ class SparkScala211Interpreter(override val conf: SparkConf,
   override val interpreterOutput = new InterpreterOutputStream(LOGGER)
 
   private val env = new Scala211VariableView(
-    arrayLimit = conf.get("zeppelin.spark.variables.takeFromCollection", "100").toInt,
-    stringLimit = conf.get("zeppelin.spark.variables.takeFromString", "400").toInt,
+    arrayLimit = conf.get("zeppelin.spark.variables.takeFromCollection", "100").toDouble.toInt,
+    stringLimit = conf.get("zeppelin.spark.variables.takeFromString", "400").toDouble.toInt,
     blackList = conf.get("zeppelin.spark.variables.blacklist",
       "res0,$intp,sc,spark,sqlContext,z").split(",").toList,
     expandMethods = conf.get("zeppelin.spark.variables.lookInto",
-      "org.apache.spark.sql.Dataset.schema").split(",").toList) {
+      "org.apache.spark.sql.Dataset.schema").split(",").toList,
+    changesOnly = conf.get("zeppelin.spark.variables.changesOnly", "false").toBoolean) {
     private val cache = mutable.Map[Any, String]()
 
     override def variables(): List[String] = sparkILoop.intp.definedSymbolList.filter { x => !x.isClass }.map(_.name.toString)
