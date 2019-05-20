@@ -45,11 +45,11 @@ class SparkScala211Interpreter(override val conf: SparkConf,
   override val interpreterOutput = new InterpreterOutputStream(LOGGER)
 
   private val env = new Scala211VariableView(
-    arrayLimit = conf.get("zeppelin.spark.variables.takeFromCollection", "100").toDouble.toInt,
-    stringLimit = conf.get("zeppelin.spark.variables.takeFromString", "400").toDouble.toInt,
+    collectionSizeLimit = conf.get("zeppelin.spark.variables.takeFromCollection", "100").toDouble.toInt,
+    stringSizeLimit = conf.get("zeppelin.spark.variables.takeFromString", "400").toDouble.toInt,
     blackList = conf.get("zeppelin.spark.variables.blacklist",
       "res0,$intp,sc,spark,sqlContext,z").split(",").toList,
-    expandMethods = conf.get("zeppelin.spark.variables.lookInto",
+    lookIntoMethods = conf.get("zeppelin.spark.variables.lookInto",
       "org.apache.spark.sql.Dataset.schema").split(",").toList,
     changesOnly = conf.get("zeppelin.spark.variables.changesOnly", "false").toBoolean) {
     private val cache = mutable.Map[Any, String]()
@@ -102,7 +102,7 @@ class SparkScala211Interpreter(override val conf: SparkConf,
     }
     sparkILoop = new ILoop(None, replOut)
     sparkILoop.settings = settings
-    sparkILoop.intp = new FixedValueOfTermFromScala2_12(sparkILoop)
+    sparkILoop.intp = new IMainWithValueOfTermFromScala212(sparkILoop)
 
     val in0 = getField(sparkILoop, "scala$tools$nsc$interpreter$ILoop$$in0").asInstanceOf[Option[BufferedReader]]
     val reader = in0.fold(sparkILoop.chooseReader(settings))(r => SimpleReader(r, replOut, interactive = true))

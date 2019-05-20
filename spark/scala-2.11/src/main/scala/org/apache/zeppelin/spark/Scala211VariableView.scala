@@ -24,18 +24,17 @@ import org.json._
 
 import scala.collection.mutable
 
-abstract class Scala211VariableView(arrayLimit: Int,
-                                    stringLimit: Int,
+abstract class Scala211VariableView(collectionSizeLimit: Int,
+                                    stringSizeLimit: Int,
                                     blackList: List[String] = List(),
-                                    expandMethods: List[String] = List(),
+                                    lookIntoMethods: List[String] = List(),
                                     stopTypes: List[String] = List("Int", "Long", "Double", "String"),
-                                    changesOnly: Boolean = false) extends BaseVariableView(arrayLimit, stringLimit, blackList, expandMethods) {
+                                    changesOnly: Boolean = false) extends BaseVariableView(collectionSizeLimit, stringSizeLimit, blackList, lookIntoMethods) {
 
   private val ru = scala.reflect.runtime.universe
   private val mirror = ru.runtimeMirror(getClass.getClassLoader)
   private val stringsCache = mutable.Map[Any, String]()
   private val newStringsCache = mutable.Map[Any, String]()
-  private val refsInPath = mutable.Map[String, List[(String, AnyRef)]]()
 
   class ReferenceWrapper(val ref: AnyRef) {
     override def hashCode(): Int = ref.hashCode()
@@ -79,24 +78,24 @@ abstract class Scala211VariableView(arrayLimit: Int,
   def asString(obj: Any): String = {
     if (newStringsCache.contains(obj)) newStringsCache(obj) else {
       val str = obj match {
-        case a: Array[_] => a.view.take(math.min(a.length, arrayLimit)).mkString(",")
+        case a: Array[_] => a.view.take(math.min(a.length, collectionSizeLimit)).mkString(",")
         case c: util.Collection[_] =>
           val it = c.iterator()
           val sb = new StringBuilder()
           var ind = 0
-          while (it.hasNext && ind < arrayLimit) {
+          while (it.hasNext && ind < collectionSizeLimit) {
             sb.append(it.next().toString)
             ind += 1
-            if (it.hasNext && ind < arrayLimit) sb.append(',')
+            if (it.hasNext && ind < collectionSizeLimit) sb.append(',')
           }
           sb.toString()
-        case s: Seq[_] => s.view.take(math.min(s.length, arrayLimit)).mkString(",")
+        case s: Seq[_] => s.view.take(math.min(s.length, collectionSizeLimit)).mkString(",")
         case e: Throwable =>
           val writer = new StringWriter()
           val out = new PrintWriter(writer)
           e.printStackTrace(out)
           writer.toString
-        case _ => if (obj == null) null else obj.toString.take(stringLimit)
+        case _ => if (obj == null) null else obj.toString.take(stringSizeLimit)
       }
       newStringsCache.put(obj, str)
       str
@@ -274,16 +273,19 @@ abstract class Scala211VariableView(arrayLimit: Int,
 
   val NO_ACCESS = Node(isAccessible = false, isLazy = false, null, null, null, null)
 
+  def isMethodWithNoParams(method: ru.MethodSymbol): Boolean =
+    method.paramLists.isEmpty || (method.paramLists.nonEmpty && method.paramLists.head.isEmpty)
+
   def get(instanceMirror: ru.InstanceMirror, symbol: ru.Symbol, path: String): Node = {
     if (symbol.isMethod && symbol.asMethod.isPublic) {
       val base = instanceMirror.symbol.baseClasses.map { x => x.fullName }
       val method = symbol.asMethod
-      if (method.paramLists.isEmpty || (method.paramLists.nonEmpty && method.paramLists.head.isEmpty)) {
+      if (isMethodWithNoParams(method)) {
         val fullName = base.map { x => x + "." + symbol.name.toString }
-        val intersection = expandMethods.intersect(fullName)
+        val intersection = lookIntoMethods.intersect(fullName)
         if (intersection.nonEmpty) {
-          val f = instanceMirror.reflectMethod(method)
-          val result = f.apply()
+          val m = instanceMirror.reflectMethod(method)
+          val result = m.apply()
           val tpe = method.returnType.typeSymbol.fullName
           Node(isAccessible = true, isLazy = method.isLazy, result, tpe, s"$path.${method.name}", null)
         } else NO_ACCESS
@@ -291,22 +293,14 @@ abstract class Scala211VariableView(arrayLimit: Int,
     } else {
       if (symbol.isTerm && symbol.asTerm.getter.isPublic) {
         val term = symbol.asTerm
-        val f = try {
-          instanceMirror.reflectField(term)
-        } catch {
-          case _: Throwable => null
-        }
-        val fieldPath = s"$path.${term.name.toString.trim}"
-        if (f == null)
-          NO_ACCESS
-        else {
+        try {
+          val f = instanceMirror.reflectField(term)
+          val fieldPath = s"$path.${term.name.toString.trim}"
           val value = f.get
-          try {
-            val tpe = term.typeSignature.toString
-            Node(isAccessible = tpe != "<notype>", isLazy = term.isLazy, value, tpe, fieldPath, getRef(value, fieldPath))
-          } catch {
-            case _: Throwable => NO_ACCESS
-          }
+          val tpe = term.typeSignature.toString
+          Node(isAccessible = tpe != "<notype>", isLazy = term.isLazy, value, tpe, fieldPath, getRef(value, fieldPath))
+        } catch {
+          case _: Throwable => NO_ACCESS
         }
       } else NO_ACCESS
     }

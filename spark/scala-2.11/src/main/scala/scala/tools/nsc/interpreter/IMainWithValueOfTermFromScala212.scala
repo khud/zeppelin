@@ -2,7 +2,7 @@ package scala.tools.nsc.interpreter
 
 import scala.reflect.runtime.{universe => ru}
 
-class FixedValueOfTermFromScala2_12(iloop: ILoop) extends IMain(iloop.settings) {
+class IMainWithValueOfTermFromScala212(iloop: ILoop) extends IMain(iloop.settings) {
   import global._
 
   import scala.util.{Try => Trying}
