@@ -59,12 +59,16 @@ public class VariablesViewTest {
         SparkShims.reset();
     }
 
+    private static interface Repl {
+        public void eval(String code) throws InterpreterException;
+        public VariableView getVariableView();
+    }
+
     @Test
     public void testSimpleVarsAndCollections() throws InterpreterException {
-        interpreter = getInterpreter(false);
-        AbstractSparkInterpreter intp = interpreter.getDelegation();
+        Repl intp = getRepl(false);
 
-        intp.interpret("val x = 1", getInterpreterContext());
+        intp.eval("val x = 1");
         VariableView view = interpreter.getVariableView();
         assertNotNull(view);
 
@@ -75,7 +79,7 @@ public class VariablesViewTest {
         assertEquals("Int", x.getString("type"));
         assertEquals(1, json.keySet().size());
 
-        intp.interpret("val list = List(1,2,3,4)", getInterpreterContext());
+        intp.eval("val list = List(1,2,3,4)");
         json = new JSONObject(view.toJson());
         JSONObject list = json.getJSONObject("list");
         assertEquals(3, list.keySet().size());
@@ -84,7 +88,7 @@ public class VariablesViewTest {
         assertEquals("1,2,3,4", list.getString("value"));
         assertEquals(2, json.keySet().size());
 
-        intp.interpret("val map = Map(1 -> 2, 2 -> 3, 3 -> 4)", getInterpreterContext());
+        intp.eval("val map = Map(1 -> 2, 2 -> 3, 3 -> 4)");
         json = new JSONObject(view.toJson());
         JSONObject map = json.getJSONObject("map");
         assertEquals(2, map.keySet().size());
@@ -94,7 +98,7 @@ public class VariablesViewTest {
         assertEquals("Map(1 -> 2, 2 -> 3, 3 -> 4)", map.getString("value"));
         assertEquals(3, json.keySet().size());
 
-        intp.interpret("1 + 1", getInterpreterContext());
+        intp.eval("1 + 1");
         json = new JSONObject(view.toJson());
         JSONObject res1 = json.getJSONObject("res1");
         assertEquals(2, res1.keySet().size());
@@ -105,11 +109,10 @@ public class VariablesViewTest {
 
     @Test
     public void testObjects() throws InterpreterException {
-        interpreter = getInterpreter(false);
-        AbstractSparkInterpreter intp = interpreter.getDelegation();
+        Repl intp = getRepl(false);
         
-        intp.interpret("class A(val x: Int)", getInterpreterContext());
-        intp.interpret("val a = new A(1)", getInterpreterContext());
+        intp.eval("class A(val x: Int)");
+        intp.eval("val a = new A(1)");
         VariableView view = interpreter.getVariableView();
         assertNotNull(view);
 
@@ -133,8 +136,8 @@ public class VariablesViewTest {
                 "def m(): Int = 10\n" +
                 "}";
 
-        intp.interpret(qDef, getInterpreterContext());
-        intp.interpret("val q = new Q()", getInterpreterContext());
+        intp.eval(qDef);
+        intp.eval("val q = new Q()");
         json = new JSONObject(view.toJson());
         JSONObject qObj = json.getJSONObject("q").getJSONObject("value");
         assertEquals(4, qObj.keySet().size());
@@ -145,65 +148,169 @@ public class VariablesViewTest {
 
     @Test
     public void testShowChangesOnly() throws InterpreterException {
-        interpreter = getInterpreter(true);
-        AbstractSparkInterpreter intp = interpreter.getDelegation();
+        Repl intp = getRepl(true);
 
-        intp.interpret("val x = 1", getInterpreterContext());
-        VariableView view = interpreter.getDelegation().getVariableView();
+        intp.eval("val x = 1");
+        VariableView view = intp.getVariableView();
         assertNotNull(view);
 
         JSONObject json = new JSONObject(view.toJson());
         assertEquals(1, json.keySet().size());
 
-        intp.interpret("val x = 2", getInterpreterContext());
+        intp.eval("val x = 2");
         json = new JSONObject(view.toJson());
         assertEquals(1, json.keySet().size());
 
-        intp.interpret("val y = 1", getInterpreterContext());
+        intp.eval("val y = 1");
         json = new JSONObject(view.toJson());
         assertEquals(1, json.keySet().size());
         assertEquals("y", json.keySet().iterator().next());
 
-        intp.interpret("class A(var x: Int)", getInterpreterContext());
-        intp.interpret("val a = new A(10)", getInterpreterContext());
-        intp.interpret("val z = 10", getInterpreterContext());
-        intp.interpret("a.x = 11", getInterpreterContext());
+        intp.eval("class A(var x: Int)");
+        intp.eval("val a = new A(10)");
+        intp.eval("val z = 10");
+        intp.eval("a.x = 11");
         json = new JSONObject(view.toJson());
         assertEquals(1, json.keySet().size());
         assertEquals("a", json.keySet().iterator().next());
 
-        intp.interpret("class B(var q: A)", getInterpreterContext());
-        intp.interpret("val b = new B(a)", getInterpreterContext());
-        intp.interpret("val c = new B(a)", getInterpreterContext());
+        intp.eval("val arr = Array(1,2,3)");
         view.toJson();
-        intp.interpret("val z = 1", InterpreterContext.get());
-        json = new JSONObject(view.toJson());
-        assertEquals(0, json.keySet().size()); // z
-        intp.interpret("a.x = 12", getInterpreterContext());
-        json = new JSONObject(view.toJson());
-        assertEquals(3, json.keySet().size()); // a, b, c
-        assertEquals(12, json.getJSONObject("b")
-                .getJSONObject("value")
-                .getJSONObject("q")
-                .getJSONObject("value")
-                .getJSONObject("x")
-                .getInt("value"));
-        assertEquals(12, json.getJSONObject("c")
-                .getJSONObject("value")
-                .getJSONObject("q")
-                .getJSONObject("value")
-                .getJSONObject("x")
-                .getInt("value"));
-
-
-        intp.interpret("val arr = Array(1,2,3)", getInterpreterContext());
-        view.toJson();
-        intp.interpret("arr(2) = 20", getInterpreterContext());
+        intp.eval("arr(2) = 20");
         json = new JSONObject(view.toJson());
         assertEquals(2, json.keySet().size()); // arr, res1
         assertEquals("1,2,20", json.getJSONObject("arr").getString("value"));
     }
 
+    @Test
+    public void testReferences() throws InterpreterException {
+        Repl intp = getRepl(true);
+        VariableView view = intp.getVariableView();
+        assertNotNull(view);
+
+        intp.eval("class A(var x: Int)");
+        intp.eval("val a = new A(10)");
+
+        intp.eval("class B(var q: A)");
+        intp.eval("val b = new B(a)");
+        intp.eval("val c = new B(a)");
+
+        JSONObject json = new JSONObject(view.toJson());
+
+        assertEquals(3, json.keySet().size()); // a, b, c
+        assertEquals("a", json.getJSONObject("b")
+                .getJSONObject("value")
+                .getJSONObject("q")
+                .getString("ref"));
+        assertEquals("a", json.getJSONObject("c")
+                .getJSONObject("value")
+                .getJSONObject("q")
+                .getString("ref"));
+
+    }
+
+    @Test
+    public void testReferenceChanged() throws InterpreterException {
+        Repl intp = getRepl(true);
+        VariableView view = intp.getVariableView();
+        assertNotNull(view);
+
+        intp.eval("class A(var x: Int)");
+        intp.eval("val a = new A(10)");
+        intp.eval("class B(var q: A)");
+        intp.eval("val b = new B(a)");
+        view.toJson();
+
+        intp.eval("a.x = 5");
+        JSONObject json = new JSONObject(view.toJson());
+        assertEquals(1, json.keySet().size());
+        assertEquals("a", json.keySet().iterator().next());
+    }
+
+    @Test
+    public void testBrokenReference() throws InterpreterException {
+        Repl intp = getRepl(true);
+        VariableView view = intp.getVariableView();
+        assertNotNull(view);
+
+        intp.eval("class A(var x: Int)");
+        intp.eval("val a = new A(10)");
+        intp.eval("class B(var q: A)");
+        intp.eval("val b = new B(a)");
+        view.toJson();
+
+        intp.eval("val a = new A(11)"); // top level term has been changed but looks the same
+        JSONObject json = new JSONObject(view.toJson());
+        assertEquals(2, json.keySet().size());
+
+        assertEquals("10", json.getJSONObject("b")
+                    .getJSONObject("value")
+                    .getJSONObject("q")
+                    .getJSONObject("value")
+                    .getJSONObject("x")
+                    .getString("value"));
+    }
+
+    @Test
+    public void testReferenceInsideTheSameObject() throws InterpreterException {
+        Repl intp = getRepl(true);
+        VariableView view = intp.getVariableView();
+        assertNotNull(view);
+
+        intp.eval("class A(var x: Int)");
+        intp.eval("class B(var q: A, var p: A)");
+        intp.eval("val b = new B(new A(10), null)");
+        intp.eval("b.p = b.q");
+        JSONObject json = new JSONObject(view.toJson());
+        assertEquals("b.p", json.getJSONObject("b")
+                .getJSONObject("value")
+                .getJSONObject("q")
+                .getString("ref"));
+
+        intp.eval("b.q.x = 11");
+        json = new JSONObject(view.toJson());
+        assertEquals(1, json.keySet().size());
+        assertEquals("11", json.getJSONObject("b")
+                .getJSONObject("value")
+                .getJSONObject("p")
+                .getJSONObject("value")
+                .getJSONObject("x")
+                .getString("value"));
+        assertEquals("b.p", json.getJSONObject("b")
+                .getJSONObject("value")
+                .getJSONObject("q")
+                .getString("ref"));
+
+        intp.eval("b.p = null");
+        json = new JSONObject(view.toJson());
+
+        assertEquals(1, json.getJSONObject("b")
+                .getJSONObject("value")
+                .getJSONObject("p").keySet().size()); // type only
+        assertEquals("11", json.getJSONObject("b")
+                .getJSONObject("value")
+                .getJSONObject("q")
+                .getJSONObject("value")
+                .getJSONObject("x")
+                .getString("value"));
+    }
+
+    private Repl getRepl(boolean changesOnly) throws InterpreterException {
+        interpreter = getInterpreter(changesOnly);
+        AbstractSparkInterpreter intp = interpreter.getDelegation();
+        return new Repl() {
+            @Override
+            public void eval(String code) throws InterpreterException {
+                intp.interpret(code, getInterpreterContext());
+            }
+
+            @Override
+            public VariableView getVariableView() {
+                return intp.getVariableView();
+            }
+        };
+    }
+    
     private SparkInterpreter getInterpreter(boolean changesOnly) throws InterpreterException {
         Properties properties = new Properties();
         properties.setProperty("spark.master", "local");

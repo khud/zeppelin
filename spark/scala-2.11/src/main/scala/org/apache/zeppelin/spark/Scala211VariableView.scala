@@ -35,6 +35,46 @@ abstract class Scala211VariableView(arrayLimit: Int,
   private val mirror = ru.runtimeMirror(getClass.getClassLoader)
   private val stringsCache = mutable.Map[Any, String]()
   private val newStringsCache = mutable.Map[Any, String]()
+  private val refsInPath = mutable.Map[String, List[(String, AnyRef)]]()
+
+  class ReferenceWrapper(val ref: AnyRef) {
+    override def hashCode(): Int = ref.hashCode()
+
+    override def equals(obj: Any): Boolean = {
+      obj match {
+        case value: ReferenceWrapper =>
+          ref.eq(value.ref)
+        case _ => false
+      }
+    }
+  }
+
+  private val refMap = mutable.Map[ReferenceWrapper, String]()
+  private val refInvMap = mutable.Map[String, ReferenceWrapper]()
+
+  def getRef(obj: Any, path: String): String = {
+    obj match {
+      case null => {
+        if (refInvMap.contains(path)) {
+          refMap.remove(refInvMap(path))
+        }
+        null
+      }
+      case ref: AnyRef =>
+        val wrapper = new ReferenceWrapper(ref)
+        if (refMap.contains(wrapper)) {
+          refMap(wrapper)
+        } else {
+          if (refInvMap.contains(path)) {
+            refMap.remove(refInvMap(path))
+          }
+          refMap(wrapper) = path
+          refInvMap(path) = wrapper
+          null
+        }
+      case _ => null
+    }
+  }
 
   def asString(obj: Any): String = {
     if (newStringsCache.contains(obj)) newStringsCache(obj) else {
@@ -110,8 +150,10 @@ abstract class Scala211VariableView(arrayLimit: Int,
         }
         val tpe = typeOfTerm(value, term)
         tree.put("type", tpe)
-        val changed = isChanged(Node(isAccessible = true, isLazy = false, value, tpe, term))
-        if (changed) markChanged(term)
+        val node = Node(isAccessible = true, isLazy = false, value, tpe, term, getRef(value, term))
+        if (isChanged(node)) {
+          markChanged(term)
+        }
         result.put(term, tree)
     }
 
@@ -139,17 +181,13 @@ abstract class Scala211VariableView(arrayLimit: Int,
   }
 
   override def toJson(obj: Any, path: String, deep:  Int): JSONObject = {
-    val data = Node(isAccessible = true, isLazy = false, obj, typeOfTerm(obj, path), path)
-    toJson1(data, deep)._1
+    val data = Node(isAccessible = true, isLazy = false, obj, typeOfTerm(obj, path), path, getRef(obj, path))
+    toJson1(data, deep)
   }
 
-  def toJson1(objData: Node, deep: Int): (JSONObject, Boolean) = {
+  def toJson1(objData: Node, deep: Int): JSONObject = {
     val root = new JSONObject()
-    val refChanged = isChanged(objData)
-    var objChanged = refChanged
-    if (stopHere(deep, objData)) {
-      (root, refChanged)
-    } else {
+    if (!stopHere(deep, objData)) {
       val instanceMirror = mirror.reflect(objData.value)
       val instanceSymbol = instanceMirror.symbol
       val members = instanceSymbol.toType.members
@@ -157,37 +195,52 @@ abstract class Scala211VariableView(arrayLimit: Int,
         symbol =>
           val data = get(instanceMirror, symbol, objData.path)
           if (data.isAccessible) {
+            if (isChanged(data)) {
+              markChanged(data.path)
+            }
             val tree = new JSONObject()
-            tree.put("type", data.tpe)
-            if (data.isLazy) tree.put("lazy", data.isLazy)
-            val len = length(data.value)
-            if (len >= 0) {
-              tree.put("length", len)
-              tree.put("value", asString(data.value))
-              val changed = isChanged(data)
-              if (changed) tree.put("changed", changed)
+            if (data.ref == null) {
+              tree.put("type", data.tpe)
+              if (data.isLazy) tree.put("lazy", data.isLazy)
+              val len = length(data.value)
+              if (len >= 0) {
+                tree.put("length", len)
+                tree.put("value", asString(data.value))
+              } else {
+                val subtree = toJson1(data, deep - 1)
+                tree.put("value", if (subtree.isEmpty) asString(data.value) else subtree)
+              }
             } else {
-              val (subtree, memberChanged) = toJson1(data, deep - 1)
-              objChanged |= memberChanged
-              tree.put("value", if (subtree.isEmpty) asString(data.value) else subtree)
+              if (data.ref != data.path) {
+                tree.put("ref", data.ref)
+              } else {
+                val subtree = toJson1(data, deep - 1)
+                tree.put("value", if (subtree.isEmpty) asString(data.value) else subtree)
+              }
             }
             root.put(symbol.name.toString.trim, tree)
           }
       }
-      if (objChanged) markChanged(objData.path)
-      (root, refChanged)
     }
+    root
   }
 
   def markChanged(path: String): Unit = {
-    val p = path.indexOf('.')
-    val head = if (p >= 0) path.substring(0, p) else path
-    changedTerms.add(head)
+    if (path.indexOf('.') >= 0) {
+      val tokens = path.split('.')
+      var p = tokens.head
+      changedTerms.add(p)
+      tokens.tail.foreach {
+        t =>
+          p += "." + t
+          changedTerms.add(p)
+      }
+    } else changedTerms.add(path)
   }
 
   private val changedTerms = mutable.Set[String]()
-  private val env = mutable.Map[String, Any]()
-  private val newEnv = mutable.Map[String, Any]()
+  private val env = mutable.Map[String, Node]()
+  private val newEnv = mutable.Map[String, Node]()
 
   private val valTypes: Set[String] = {
     val l = List("Int", "Long", "Byte", "Short", "Boolean", "Char", "Float", "Double")
@@ -196,25 +249,30 @@ abstract class Scala211VariableView(arrayLimit: Int,
 
   def isChanged(node: Node): Boolean  = {
     if (!env.contains(node.path)) {
-      newEnv(node.path) = node.value
+      newEnv(node.path) = node
       true
     } else {
-      val oldValue = env(node.path)
-      newEnv(node.path) = node.value
-      node.value match {
-        case null => oldValue != null
-        case _: Array[_] | _: util.Collection[_] | _: Seq[_] =>
-          !asString(node.value).equals(stringsCache(oldValue))
-        case ref: AnyRef => if (!valTypes.contains(node.tpe)) {
-          oldValue.isInstanceOf[AnyRef] && !oldValue.asInstanceOf[AnyRef].eq(ref)
-        } else !oldValue.equals(node.value)
+      val oldNode = env(node.path)
+      if (oldNode.ref != node.ref)
+        true
+      else {
+        val oldValue = oldNode.value
+        newEnv(node.path) = node
+        node.value match {
+          case null => oldValue != null
+          case _: Array[_] | _: util.Collection[_] | _: Seq[_] =>
+            !asString(node.value).equals(stringsCache(oldValue))
+          case ref: AnyRef => if (!valTypes.contains(node.tpe)) {
+            oldValue.isInstanceOf[AnyRef] && !oldValue.asInstanceOf[AnyRef].eq(ref)
+          } else !oldValue.equals(node.value)
+        }
       }
     }
   }
 
-  case class Node(isAccessible: Boolean, isLazy: Boolean, value: Any, tpe: String, path: String)
+  case class Node(isAccessible: Boolean, isLazy: Boolean, value: Any, tpe: String, path: String, ref: String)
 
-  val NO_ACCESS = Node(isAccessible = false, isLazy = false, null, null, null)
+  val NO_ACCESS = Node(isAccessible = false, isLazy = false, null, null, null, null)
 
   def get(instanceMirror: ru.InstanceMirror, symbol: ru.Symbol, path: String): Node = {
     if (symbol.isMethod && symbol.asMethod.isPublic) {
@@ -227,7 +285,7 @@ abstract class Scala211VariableView(arrayLimit: Int,
           val f = instanceMirror.reflectMethod(method)
           val result = f.apply()
           val tpe = method.returnType.typeSymbol.fullName
-          Node(isAccessible = true, isLazy = method.isLazy, result, tpe, s"$path.${method.name}")
+          Node(isAccessible = true, isLazy = method.isLazy, result, tpe, s"$path.${method.name}", null)
         } else NO_ACCESS
       } else NO_ACCESS
     } else {
@@ -245,7 +303,7 @@ abstract class Scala211VariableView(arrayLimit: Int,
           val value = f.get
           try {
             val tpe = term.typeSignature.toString
-            Node(isAccessible = tpe != "<notype>", isLazy = term.isLazy, value, tpe, fieldPath)
+            Node(isAccessible = tpe != "<notype>", isLazy = term.isLazy, value, tpe, fieldPath, getRef(value, fieldPath))
           } catch {
             case _: Throwable => NO_ACCESS
           }
