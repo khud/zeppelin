@@ -19,6 +19,7 @@
 package org.apache.zeppelin.notebook;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.zeppelin.interpreter.InterpreterResult;
 import org.apache.zeppelin.notebook.repo.NotebookRepo;
 import org.apache.zeppelin.scheduler.Job;
 import org.apache.zeppelin.user.AuthenticationInfo;
@@ -162,15 +163,23 @@ public class NoteManager {
    * @throws IOException
    */
   public void saveNote(Note note, AuthenticationInfo subject) throws IOException {
+    removeSystemData(note);
     addOrUpdateNoteNode(note);
     this.notebookRepo.save(note, subject);
     note.setLoaded(true);
   }
 
   public void addNote(Note note, AuthenticationInfo subject) throws IOException {
+    removeSystemData(note);
     addOrUpdateNoteNode(note, true);
     this.notebookRepo.save(note, subject);
     note.setLoaded(true);
+  }
+
+  void removeSystemData(Note note) {
+    note.getParagraphs().forEach( p -> {
+      if (p.getReturn() != null && p.getReturn().message() != null)
+        p.getReturn().message().removeIf( m -> m.getType() == InterpreterResult.Type.DATA ); });
   }
 
   /**
