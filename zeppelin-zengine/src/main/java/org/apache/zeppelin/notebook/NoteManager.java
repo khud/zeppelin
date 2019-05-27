@@ -20,17 +20,14 @@ package org.apache.zeppelin.notebook;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.zeppelin.interpreter.InterpreterResult;
+import org.apache.zeppelin.interpreter.InterpreterResultMessage;
 import org.apache.zeppelin.notebook.repo.NotebookRepo;
-import org.apache.zeppelin.scheduler.Job;
 import org.apache.zeppelin.user.AuthenticationInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -163,23 +160,45 @@ public class NoteManager {
    * @throws IOException
    */
   public void saveNote(Note note, AuthenticationInfo subject) throws IOException {
-    removeSystemData(note);
+    Map<String, List<InterpreterResultMessage>> system = removeSystemData(note);
     addOrUpdateNoteNode(note);
     this.notebookRepo.save(note, subject);
     note.setLoaded(true);
+    restoreSystemData(note, system);
   }
 
   public void addNote(Note note, AuthenticationInfo subject) throws IOException {
-    removeSystemData(note);
+    Map<String, List<InterpreterResultMessage>> system = removeSystemData(note);
     addOrUpdateNoteNode(note, true);
     this.notebookRepo.save(note, subject);
     note.setLoaded(true);
+    restoreSystemData(note, system);
   }
 
-  void removeSystemData(Note note) {
+  Map<String, List<InterpreterResultMessage>> removeSystemData(Note note) {
+    Map<String, List<InterpreterResultMessage>> map = new HashMap<>();
     note.getParagraphs().forEach( p -> {
-      if (p.getReturn() != null && p.getReturn().message() != null)
-        p.getReturn().message().removeIf( m -> m.getType() == InterpreterResult.Type.DATA ); });
+      if (p.getReturn() != null && p.getReturn().message() != null) {
+        List<InterpreterResultMessage> system = new LinkedList<>();
+        p.getReturn().message().removeIf( m -> {
+          boolean isSystem = m.getType() == InterpreterResult.Type.DATA;
+          if (isSystem) system.add(m);
+          return isSystem;
+        });
+        map.put(p.getId(), system);
+    } } );
+    return map;
+  }
+
+  void restoreSystemData(Note note, Map<String, List<InterpreterResultMessage>> system) {
+    note.getParagraphs().forEach( p -> {
+      if (p.getReturn() != null && p.getReturn().message() != null) {
+        if (system.containsKey(p.getId())) {
+          List<InterpreterResultMessage> msg = system.get(p.getId());
+          p.getReturn().message().addAll(msg);
+        }
+      }
+    });
   }
 
   /**
