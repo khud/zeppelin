@@ -166,9 +166,13 @@ abstract class Scala211VariableView(arrayLimit: Int,
         if (f == null)
           NO_ACCESS
         else {
-          val value = f.get
-          val tpe = term.typeSignature.toString
-          Node(isAccessible = tpe != "<notype>", isLazy = term.isLazy, value, tpe, fieldPath)
+          try {
+            val value = f.get
+            val tpe = term.typeSignature.toString
+            Node(isAccessible = tpe != "<notype>", isLazy = term.isLazy, value, tpe, fieldPath)
+          } catch {
+            case _: Throwable => NO_ACCESS
+          }
         }
       } else NO_ACCESS
     }
