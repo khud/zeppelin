@@ -4,6 +4,9 @@ import org.apache.zeppelin.interpreter.Interpreter;
 import org.apache.zeppelin.interpreter.InterpreterContext;
 import org.apache.zeppelin.interpreter.InterpreterException;
 import org.apache.zeppelin.interpreter.InterpreterResult;
+import org.apache.zeppelin.kotlin.plugins.KotlinPluginLoader;
+import org.jetbrains.kotlin.config.CompilerConfiguration;
+import org.jetbrains.kotlin.scripting.repl.ReplInterpreter;
 
 import java.util.Properties;
 
@@ -12,9 +15,13 @@ public class KotlinInterpreter extends Interpreter {
     super(properties);
   }
 
+  private KotlinPluginLoader loader;
+  private ReplInterpreter interpreter;
+
   @Override
   public void open() throws InterpreterException {
-
+    loader = new KotlinPluginLoader();
+    CompilerConfiguration configuration = loader.loadCompilerConfiguration();
   }
 
   @Override
@@ -25,7 +32,8 @@ public class KotlinInterpreter extends Interpreter {
   @Override
   public InterpreterResult interpret(String st,
                                      InterpreterContext context) throws InterpreterException {
-    return new InterpreterResult(InterpreterResult.Code.SUCCESS, st);
+    String result = loader.getJarPathByName(st);
+    return new InterpreterResult(InterpreterResult.Code.SUCCESS, result);
   }
 
   @Override
