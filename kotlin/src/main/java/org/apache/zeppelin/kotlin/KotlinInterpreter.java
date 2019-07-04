@@ -4,7 +4,7 @@ import org.apache.zeppelin.interpreter.Interpreter;
 import org.apache.zeppelin.interpreter.InterpreterContext;
 import org.apache.zeppelin.interpreter.InterpreterException;
 import org.apache.zeppelin.interpreter.InterpreterResult;
-import org.apache.zeppelin.kotlin.plugins.KotlinPluginLoader;
+import org.apache.zeppelin.kotlin.repl.KotlinPluginLoader;
 import org.jetbrains.kotlin.config.CompilerConfiguration;
 import org.jetbrains.kotlin.scripting.repl.ReplInterpreter;
 
@@ -22,6 +22,7 @@ public class KotlinInterpreter extends Interpreter {
   public void open() throws InterpreterException {
     loader = new KotlinPluginLoader();
     CompilerConfiguration configuration = loader.loadCompilerConfiguration();
+
   }
 
   @Override
