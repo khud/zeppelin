@@ -28,7 +28,7 @@ abstract class Scala211VariableView(collectionSizeLimit: Int,
                                     stringSizeLimit: Int,
                                     blackList: List[String] = List(),
                                     lookIntoMethods: List[String] = List(),
-                                    stopTypes: List[String] = List("Int", "Long", "Double", "String"),
+                                    stopTypes: List[String] = Scala211VariableView.valTypes,
                                     changesOnly: Boolean = false) extends BaseVariableView(collectionSizeLimit, stringSizeLimit, blackList, lookIntoMethods) {
 
   private val ru = scala.reflect.runtime.universe
@@ -130,9 +130,10 @@ abstract class Scala211VariableView(collectionSizeLimit: Int,
   }
 
   override def toJson(env: Map[String, Any]): JSONObject = {
-    changedTerms.clear()
-
     val result = new JSONObject()
+    env.foreach {
+      case (term, value) => getRef(value, term)
+    }
     env.foreach {
       case (term, value) =>
         val tree = new JSONObject()
@@ -149,34 +150,9 @@ abstract class Scala211VariableView(collectionSizeLimit: Int,
         }
         val tpe = typeOfTerm(value, term)
         tree.put("type", tpe)
-        val node = Node(isAccessible = true, isLazy = false, value, tpe, term, getRef(value, term))
-        if (isChanged(node)) {
-          markChanged(term)
-        }
         result.put(term, tree)
     }
-
-    mergeEnv()
-    filter(result)
-  }
-
-  def mergeEnv(): Unit = {
-    env ++= newEnv
-    newEnv.clear()
-    stringsCache ++= newStringsCache
-    newStringsCache.clear()
-  }
-
-  def filter(json: JSONObject): JSONObject = {
-    if (changesOnly) {
-      val result = new JSONObject()
-      val it = json.keys()
-      while (it.hasNext) {
-        val key = it.next()
-        if (changedTerms.contains(key)) result.put(key, json.get(key))
-      }
-      result
-    } else json
+    result
   }
 
   override def toJson(obj: Any, path: String, deep:  Int): JSONObject = {
@@ -190,13 +166,13 @@ abstract class Scala211VariableView(collectionSizeLimit: Int,
       val instanceMirror = mirror.reflect(objData.value)
       val instanceSymbol = instanceMirror.symbol
       val members = instanceSymbol.toType.members
-      members.foreach {
+      val nodes = members.map {
         symbol =>
-          val data = get(instanceMirror, symbol, objData.path)
+          (symbol, get(instanceMirror, symbol, objData.path))
+      }
+      nodes.foreach {
+        case (symbol, data) =>
           if (data.isAccessible) {
-            if (isChanged(data)) {
-              markChanged(data.path)
-            }
             val tree = new JSONObject()
             if (data.ref == null) {
               tree.put("type", data.tpe)
@@ -222,51 +198,6 @@ abstract class Scala211VariableView(collectionSizeLimit: Int,
       }
     }
     root
-  }
-
-  def markChanged(path: String): Unit = {
-    if (path.indexOf('.') >= 0) {
-      val tokens = path.split('.')
-      var p = tokens.head
-      changedTerms.add(p)
-      tokens.tail.foreach {
-        t =>
-          p += "." + t
-          changedTerms.add(p)
-      }
-    } else changedTerms.add(path)
-  }
-
-  private val changedTerms = mutable.Set[String]()
-  private val env = mutable.Map[String, Node]()
-  private val newEnv = mutable.Map[String, Node]()
-
-  private val valTypes: Set[String] = {
-    val l = List("Int", "Long", "Byte", "Short", "Boolean", "Char", "Float", "Double")
-    (l.map{ x => "scala." + x} ++ l).toSet
-  }
-
-  def isChanged(node: Node): Boolean  = {
-    if (!env.contains(node.path)) {
-      newEnv(node.path) = node
-      true
-    } else {
-      val oldNode = env(node.path)
-      if (oldNode.ref != node.ref)
-        true
-      else {
-        val oldValue = oldNode.value
-        newEnv(node.path) = node
-        node.value match {
-          case null => oldValue != null
-          case _: Array[_] | _: util.Collection[_] | _: Seq[_] =>
-            !asString(node.value).equals(stringsCache(oldValue))
-          case ref: AnyRef => if (!valTypes.contains(node.tpe)) {
-            oldValue.isInstanceOf[AnyRef] && !oldValue.asInstanceOf[AnyRef].eq(ref)
-          } else !oldValue.equals(node.value)
-        }
-      }
-    }
   }
 
   case class Node(isAccessible: Boolean, isLazy: Boolean, value: Any, tpe: String, path: String, ref: String)
@@ -307,4 +238,11 @@ abstract class Scala211VariableView(collectionSizeLimit: Int,
   }
 
   def annotateTypes(): Boolean
+}
+
+object Scala211VariableView {
+  val valTypes: List[String] = {
+    val l = List("Int", "Long", "Byte", "Short", "Boolean", "Char", "Float", "Double")
+    l.map{ x => "scala." + x} ++ l
+  }
 }

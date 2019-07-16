@@ -66,7 +66,7 @@ public class VariablesViewTest {
 
     @Test
     public void testSimpleVarsAndCollections() throws InterpreterException {
-        Repl intp = getRepl(false);
+        Repl intp = getRepl();
 
         intp.eval("val x = 1");
         VariableView view = interpreter.getVariableView();
@@ -109,7 +109,7 @@ public class VariablesViewTest {
 
     @Test
     public void testObjects() throws InterpreterException {
-        Repl intp = getRepl(false);
+        Repl intp = getRepl();
         
         intp.eval("class A(val x: Int)");
         intp.eval("val a = new A(1)");
@@ -147,44 +147,8 @@ public class VariablesViewTest {
     }
 
     @Test
-    public void testShowChangesOnly() throws InterpreterException {
-        Repl intp = getRepl(true);
-
-        intp.eval("val x = 1");
-        VariableView view = intp.getVariableView();
-        assertNotNull(view);
-
-        JSONObject json = new JSONObject(view.toJson());
-        assertEquals(1, json.keySet().size());
-
-        intp.eval("val x = 2");
-        json = new JSONObject(view.toJson());
-        assertEquals(1, json.keySet().size());
-
-        intp.eval("val y = 1");
-        json = new JSONObject(view.toJson());
-        assertEquals(1, json.keySet().size());
-        assertEquals("y", json.keySet().iterator().next());
-
-        intp.eval("class A(var x: Int)");
-        intp.eval("val a = new A(10)");
-        intp.eval("val z = 10");
-        intp.eval("a.x = 11");
-        json = new JSONObject(view.toJson());
-        assertEquals(1, json.keySet().size());
-        assertEquals("a", json.keySet().iterator().next());
-
-        intp.eval("val arr = Array(1,2,3)");
-        view.toJson();
-        intp.eval("arr(2) = 20");
-        json = new JSONObject(view.toJson());
-        assertEquals(2, json.keySet().size()); // arr, res1
-        assertEquals("1,2,20", json.getJSONObject("arr").getString("value"));
-    }
-
-    @Test
     public void testReferences() throws InterpreterException {
-        Repl intp = getRepl(true);
+        Repl intp = getRepl();
         VariableView view = intp.getVariableView();
         assertNotNull(view);
 
@@ -210,26 +174,8 @@ public class VariablesViewTest {
     }
 
     @Test
-    public void testReferenceChanged() throws InterpreterException {
-        Repl intp = getRepl(true);
-        VariableView view = intp.getVariableView();
-        assertNotNull(view);
-
-        intp.eval("class A(var x: Int)");
-        intp.eval("val a = new A(10)");
-        intp.eval("class B(var q: A)");
-        intp.eval("val b = new B(a)");
-        view.toJson();
-
-        intp.eval("a.x = 5");
-        JSONObject json = new JSONObject(view.toJson());
-        assertEquals(1, json.keySet().size());
-        assertEquals("a", json.keySet().iterator().next());
-    }
-
-    @Test
     public void testBrokenReference() throws InterpreterException {
-        Repl intp = getRepl(true);
+        Repl intp = getRepl();
         VariableView view = intp.getVariableView();
         assertNotNull(view);
 
@@ -253,7 +199,7 @@ public class VariablesViewTest {
 
     @Test
     public void testReferenceInsideTheSameObject() throws InterpreterException {
-        Repl intp = getRepl(true);
+        Repl intp = getRepl();
         VariableView view = intp.getVariableView();
         assertNotNull(view);
 
@@ -295,8 +241,106 @@ public class VariablesViewTest {
                 .getString("value"));
     }
 
-    private Repl getRepl(boolean changesOnly) throws InterpreterException {
-        interpreter = getInterpreter(changesOnly);
+    @Test
+    public void testTopLevelCyclicReferences() throws InterpreterException {
+        String code = " \n" +
+                "class A {\n" +
+                "  var strInA : String = _\n" +
+                "  var memberB : B = _  \n" +
+                "}\n" +
+                "\n" +
+                "class B {\n" +
+                "  var strInB : String = _\n" +
+                "  var memberA : A = _  \n" +
+                "}\n" +
+                "\n" +
+                "val a = new A()\n" +
+                "a.strInA = \"class A\"\n" +
+                "\n" +
+                "val b = new B()\n" +
+                "b.strInB = \"class B\"\n" +
+                "\n" +
+                "a.memberB = b\n" +
+                "b.memberA = a";
+        Repl intp = getRepl();
+        VariableView view = intp.getVariableView();
+        assertNotNull(view);
+        intp.eval(code);
+        JSONObject json = new JSONObject(view.toJson());
+        assertEquals("b", json.getJSONObject("a")
+                .getJSONObject("value")
+                .getJSONObject("memberB")
+                .getString("ref"));
+        assertEquals("a", json.getJSONObject("b")
+                .getJSONObject("value")
+                .getJSONObject("memberA")
+                .getString("ref"));
+        assertEquals("class A", json.getJSONObject("a")
+                .getJSONObject("value")
+                .getJSONObject("strInA")
+                .getString("value"));
+        assertEquals("class B", json.getJSONObject("b")
+                .getJSONObject("value")
+                .getJSONObject("strInB")
+                .getString("value"));
+    }
+
+    @Test
+    public void testCyclicReferences() throws InterpreterException {
+        String code = "class A {\n" +
+                "  var strInA : String = _\n" +
+                "  var memberB : B = _\n" +
+                "}\n" +
+                "\n" +
+                "class B {\n" +
+                "  var strInB : String = _\n" +
+                "  var memberA : A = _\n" +
+                "}\n" +
+                "\n" +
+                "class C {\n" +
+                "    val a = new A()\n" +
+                "    val b = new B()\n" +
+                "}\n" +
+                "\n" +
+                "val c = new C()\n" +
+                "c.a.strInA = \"class A\"\n" +
+                "c.b.strInB = \"class B\"\n" +
+                "\n" +
+                "c.a.memberB = c.b\n" +
+                "c.b.memberA = c.a";
+        Repl intp = getRepl();
+        VariableView view = intp.getVariableView();
+        assertNotNull(view);
+        intp.eval(code);
+        JSONObject json = new JSONObject(view.toJson());
+        assertEquals("c.b", json.getJSONObject("c")
+                .getJSONObject("value")
+                .getJSONObject("a")
+                .getJSONObject("value")
+                .getJSONObject("memberB")
+                .getString("ref"));
+        assertEquals("c.a", json.getJSONObject("c")
+                .getJSONObject("value")
+                .getJSONObject("b")
+                .getJSONObject("value")
+                .getJSONObject("memberA")
+                .getString("ref"));
+        assertEquals("class A", json.getJSONObject("c")
+                .getJSONObject("value")
+                .getJSONObject("a")
+                .getJSONObject("value")
+                .getJSONObject("strInA")
+                .getString("value"));
+        assertEquals("class B", json.getJSONObject("c")
+                .getJSONObject("value")
+                .getJSONObject("b")
+                .getJSONObject("value")
+                .getJSONObject("strInB")
+                .getString("value"));
+    }
+
+    private Repl getRepl() throws InterpreterException {
+        interpreter = getInterpreter();
         AbstractSparkInterpreter intp = interpreter.getDelegation();
         return new Repl() {
             @Override
@@ -311,7 +355,7 @@ public class VariablesViewTest {
         };
     }
     
-    private SparkInterpreter getInterpreter(boolean changesOnly) throws InterpreterException {
+    private SparkInterpreter getInterpreter() throws InterpreterException {
         Properties properties = new Properties();
         properties.setProperty("spark.master", "local");
         properties.setProperty("spark.app.name", "test");
@@ -322,7 +366,6 @@ public class VariablesViewTest {
         // disable color output for easy testing
         properties.setProperty("zeppelin.spark.scala.color", "false");
         properties.setProperty("zeppelin.spark.deprecatedMsg.show", "false");
-        properties.setProperty("zeppelin.spark.variables.changesOnly", String.valueOf(changesOnly));
 
         InterpreterContext context = InterpreterContext.builder()
                 .setInterpreterOut(new InterpreterOutput(null))
