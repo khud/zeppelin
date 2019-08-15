@@ -105,7 +105,6 @@ public class KotlinSparkInterpreter extends Interpreter {
   @Override
   public void cancel(InterpreterContext context) throws InterpreterException {
     jsc.cancelJobGroup(buildJobGroupId(context));
-    jsc.setLocalProperty("spark.scheduler.pool", context.getLocalProperties().get("pool"));
 
     interpreter.cancel(context);
   }
