@@ -25,7 +25,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import scala.Console;
 import org.apache.zeppelin.interpreter.Interpreter;
 import org.apache.zeppelin.interpreter.InterpreterContext;
 import org.apache.zeppelin.interpreter.InterpreterException;
@@ -33,7 +32,6 @@ import org.apache.zeppelin.interpreter.InterpreterOutput;
 import org.apache.zeppelin.interpreter.InterpreterResult;
 import org.apache.zeppelin.interpreter.thrift.InterpreterCompletion;
 import org.apache.zeppelin.interpreter.util.InterpreterOutputStream;
-import org.apache.zeppelin.kotlin.receiver.ZeppelinKotlinReceiver;
 import org.apache.zeppelin.scheduler.Job;
 
 public class KotlinInterpreter extends Interpreter {
@@ -50,11 +48,7 @@ public class KotlinInterpreter extends Interpreter {
     int maxResult = Integer.parseInt(
         properties.getProperty("zeppelin.kotlin.maxResult", "1000"));
 
-    // TODO(dk) figure out why getInterpreterGroup().getInterpreterHookRegistry() NPEs
-    BaseKotlinZeppelinContext defaultCtx = new BaseKotlinZeppelinContext(
-        null, //getInterpreterGroup().getInterpreterHookRegistry(),
-        maxResult);
-    builder.executionContext(new ZeppelinKotlinReceiver(defaultCtx)).maxResult(maxResult);
+    builder.executionContext(new KotlinReceiver()).maxResult(maxResult);
   }
 
   public KotlinReplBuilder getBuilder() {
@@ -133,16 +127,10 @@ public class KotlinInterpreter extends Interpreter {
     this.out.setInterpreterOutput(out);
 
     PrintStream oldOut = System.out;
-    PrintStream scalaOut = Console.out();
-
-    PrintStream newOut = new PrintStream(out);
+    PrintStream newOut = (out != null) ? new PrintStream(out) : null;
     System.setOut(newOut);
-    Console.setOut(newOut);
-
     InterpreterResult res = interpreter.eval(code);
-
     System.setOut(oldOut);
-    Console.setOut(scalaOut);
 
     return res;
   }

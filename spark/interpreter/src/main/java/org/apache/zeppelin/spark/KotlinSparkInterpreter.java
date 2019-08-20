@@ -17,6 +17,8 @@
 
 package org.apache.zeppelin.spark;
 
+import static org.apache.zeppelin.spark.Utils.buildJobDesc;
+import static org.apache.zeppelin.spark.Utils.buildJobGroupId;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.util.Utils;
@@ -24,15 +26,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import scala.Console;
 import org.apache.zeppelin.interpreter.Interpreter;
 import org.apache.zeppelin.interpreter.InterpreterContext;
 import org.apache.zeppelin.interpreter.InterpreterException;
+import org.apache.zeppelin.interpreter.InterpreterOutput;
 import org.apache.zeppelin.interpreter.InterpreterResult;
 import org.apache.zeppelin.interpreter.thrift.InterpreterCompletion;
 import org.apache.zeppelin.kotlin.KotlinInterpreter;
@@ -45,6 +50,7 @@ public class KotlinSparkInterpreter extends Interpreter {
   private KotlinInterpreter interpreter;
   private SparkInterpreter sparkInterpreter;
   private SparkZeppelinContext z;
+  private JavaSparkContext jsc;
 
   public KotlinSparkInterpreter(Properties properties) {
     super(properties);
@@ -56,7 +62,7 @@ public class KotlinSparkInterpreter extends Interpreter {
   public void open() throws InterpreterException {
     sparkInterpreter =
         getInterpreterInTheSameSessionByClassName(SparkInterpreter.class);
-    JavaSparkContext jsc = sparkInterpreter.getJavaSparkContext();
+    jsc = sparkInterpreter.getJavaSparkContext();
     z = (SparkZeppelinContext) sparkInterpreter.getZeppelinContext();
 
     SparkKotlinReceiver ctx = new SparkKotlinReceiver(
@@ -68,7 +74,13 @@ public class KotlinSparkInterpreter extends Interpreter {
     String cp = sparkClasspath();
     List<String> compilerOptions = Arrays.asList("-classpath", cp);
 
-    String outputDir = jsc.getConf().get("spark.repl.class.outputDir");
+    // TODO(dk) fix NPE in tests
+    String outputDir;
+    try {
+      outputDir = jsc.getConf().getOption("spark.repl.class.outputDir").getOrElse(null);
+    } catch (NullPointerException e) {
+      outputDir = null;
+    }
 
     interpreter.getBuilder()
         .executionContext(ctx)
@@ -93,11 +105,24 @@ public class KotlinSparkInterpreter extends Interpreter {
     z.setNoteGui(context.getNoteGui());
     InterpreterContext.set(context);
 
-    return interpreter.interpret(st, context);
+    jsc.setJobGroup(buildJobGroupId(context), buildJobDesc(context), false);
+    jsc.setLocalProperty("spark.scheduler.pool", context.getLocalProperties().get("pool"));
+
+    InterpreterOutput out = context.out;
+    PrintStream scalaOut = Console.out();
+    PrintStream newOut = (out != null) ? new PrintStream(out) : null;
+
+    Console.setOut(newOut);
+    InterpreterResult result = interpreter.interpret(st, context);
+    Console.setOut(scalaOut);
+
+    return result;
   }
 
   @Override
   public void cancel(InterpreterContext context) throws InterpreterException {
+    jsc.cancelJobGroup(buildJobGroupId(context));
+
     interpreter.cancel(context);
   }
 
@@ -108,7 +133,7 @@ public class KotlinSparkInterpreter extends Interpreter {
 
   @Override
   public int getProgress(InterpreterContext context) throws InterpreterException {
-    return interpreter.getProgress(context);
+    return sparkInterpreter.getProgress(context);
   }
 
   @Override

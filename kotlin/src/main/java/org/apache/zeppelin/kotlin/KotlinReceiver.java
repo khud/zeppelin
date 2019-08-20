@@ -15,27 +15,13 @@
  * limitations under the License.
  */
 
-package org.apache.zeppelin.spark.kotlin;
+package org.apache.zeppelin.kotlin;
 
-import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.sql.SQLContext;
-import org.apache.spark.sql.SparkSession;
-import org.apache.zeppelin.kotlin.KotlinReceiver;
-import org.apache.zeppelin.spark.SparkZeppelinContext;
-
-public class SparkKotlinReceiver extends KotlinReceiver {
-  public SparkSession spark;
-  public JavaSparkContext sc;
-  public SQLContext sqlContext;
-  public SparkZeppelinContext z;
-
-  public SparkKotlinReceiver(SparkSession spark,
-                             JavaSparkContext sc,
-                             SQLContext sqlContext,
-                             SparkZeppelinContext z) {
-    this.spark = spark;
-    this.sc = sc;
-    this.sqlContext = sqlContext;
-    this.z = z;
+/**
+  The execution context for lines in Kotlin REPL.
+  It is passed to the script as an implicit receiver, identical to:
+  with (context) {
+    ...
   }
-}
+ */
+public class KotlinReceiver {}
