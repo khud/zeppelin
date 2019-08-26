@@ -30,8 +30,15 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
@@ -39,6 +46,9 @@ import kotlin.script.experimental.jvm.impl.KJvmCompiledScript;
 import kotlin.script.experimental.jvmhost.repl.JvmReplCompiler;
 import kotlin.script.experimental.jvmhost.repl.JvmReplEvaluator;
 import org.apache.zeppelin.interpreter.InterpreterResult;
+import org.apache.zeppelin.kotlin.context.KotlinReceiver;
+import org.apache.zeppelin.kotlin.reflect.KotlinReflectUtil;
+import org.apache.zeppelin.kotlin.reflect.KotlinVariableInfo;
 
 public class KotlinRepl {
   private static Logger logger = LoggerFactory.getLogger(KotlinRepl.class);
@@ -48,16 +58,13 @@ public class KotlinRepl {
   private AggregatedReplStageState<?, ?> state;
   private AtomicInteger counter;
   private String outputDir;
+  private KotlinContext ctx;
   private int maxResult;
-
-  public KotlinRepl(JvmReplCompiler compiler,
-                    JvmReplEvaluator evaluator) {
-    this(compiler, evaluator, null, 0);
-  }
 
   @SuppressWarnings("unchecked")
   public KotlinRepl(JvmReplCompiler compiler,
                     JvmReplEvaluator evaluator,
+                    KotlinReceiver receiver,
                     String outputDir,
                     int maxResult) {
     this.compiler = compiler;
@@ -71,6 +78,10 @@ public class KotlinRepl {
 
     this.outputDir = outputDir;
     this.maxResult = maxResult;
+
+    ctx = new KotlinContext();
+    updateContext();
+    receiver.kc = ctx;
   }
 
   public InterpreterResult eval(String code) {
@@ -108,9 +119,12 @@ public class KotlinRepl {
           InterpreterResult.Code.ERROR, "history mismatch at " + e.getLineNo());
     }
     if (evalResult instanceof ReplEvalResult.UnitResult) {
+      updateContext();
       return new InterpreterResult(InterpreterResult.Code.SUCCESS);
     }
     if (evalResult instanceof ReplEvalResult.ValueResult) {
+      updateContext();
+
       ReplEvalResult.ValueResult v = (ReplEvalResult.ValueResult) evalResult;
       String valueString = prepareValueString(v.getValue());
       return new InterpreterResult(
@@ -119,6 +133,18 @@ public class KotlinRepl {
     }
     return new InterpreterResult(InterpreterResult.Code.ERROR,
         "unknown evaluation result: " + evalResult.toString());
+  }
+
+  public List<KotlinVariableInfo> getRuntimeVariables() {
+    return ctx.getVars();
+  }
+
+  public List<Method> getMethods() {
+    return ctx.getMethods();
+  }
+
+  public KotlinContext getKotlinContext() {
+    return ctx;
   }
 
   private String prepareValueString(Object value) {
@@ -184,6 +210,24 @@ public class KotlinRepl {
       out.flush();
     } catch (IOException e) {
       logger.error(e.getMessage());
+    }
+  }
+
+  private void updateContext() {
+    KotlinReflectUtil.updateVars(ctx.vars, state);
+    KotlinReflectUtil.updateMethods(ctx.methods, state);
+  }
+
+  public static class KotlinContext {
+    private Map<String, KotlinVariableInfo> vars = new HashMap<>();
+    private Set<Method> methods = new HashSet<>();
+
+    public List<KotlinVariableInfo> getVars() {
+      return new ArrayList<>(vars.values());
+    }
+
+    public List<Method> getMethods() {
+      return new ArrayList<>(methods);
     }
   }
 }

@@ -15,27 +15,39 @@
  * limitations under the License.
  */
 
-package org.apache.zeppelin.spark.kotlin;
+package org.apache.zeppelin.kotlin.reflect;
 
-import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.sql.SQLContext;
-import org.apache.spark.sql.SparkSession;
-import org.apache.zeppelin.interpreter.BaseZeppelinContext;
-import org.apache.zeppelin.kotlin.context.KotlinReceiver;
+import java.lang.reflect.Field;
 
-public class SparkKotlinReceiver extends KotlinReceiver {
-  public SparkSession spark;
-  public JavaSparkContext sc;
-  public SQLContext sqlContext;
-  public BaseZeppelinContext z;
+public class KotlinVariableInfo {
+  private final String name;
+  private final Object value;
+  private final Field descriptor;
 
-  public SparkKotlinReceiver(SparkSession spark,
-                             JavaSparkContext sc,
-                             SQLContext sqlContext,
-                             BaseZeppelinContext z) {
-    this.spark = spark;
-    this.sc = sc;
-    this.sqlContext = sqlContext;
-    this.z = z;
+  public KotlinVariableInfo(String name, Object value, Field descriptor) {
+    this.name = name;
+    this.value = value;
+    this.descriptor = descriptor;
+  }
+
+  public String getName() {
+    return name;
+  }
+
+  public Object getValue() {
+    return value;
+  }
+
+  public Field getDescriptor() {
+    return descriptor;
+  }
+
+  public String kotlinTypeName() {
+    return KotlinReflectUtil.kotlinTypeName(value);
+  }
+
+  @Override
+  public String toString() {
+    return name + ": " + kotlinTypeName() + " = " + getValue();
   }
 }

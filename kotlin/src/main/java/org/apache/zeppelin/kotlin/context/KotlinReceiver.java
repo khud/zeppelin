@@ -15,13 +15,18 @@
  * limitations under the License.
  */
 
-package org.apache.zeppelin.kotlin;
+package org.apache.zeppelin.kotlin.context;
+
+import org.apache.zeppelin.kotlin.KotlinRepl;
 
 /**
-  The execution context for lines in Kotlin REPL.
-  It is passed to the script as an implicit receiver, identical to:
-  with (context) {
-    ...
-  }
+ The execution context for lines in Kotlin REPL.
+ It is passed to the script as an implicit receiver, identical to:
+ with (context) {
+ ...
+ }
  */
-public class KotlinReceiver {}
+public class KotlinReceiver {
+  public KotlinRepl.KotlinContext kc;
+}
+

@@ -37,6 +37,7 @@ import kotlin.script.experimental.jvm.JvmScriptCompilationKt;
 import kotlin.script.experimental.jvmhost.impl.JvmHostUtilKt;
 import kotlin.script.experimental.jvmhost.repl.JvmReplCompiler;
 import kotlin.script.experimental.jvmhost.repl.JvmReplEvaluator;
+import org.apache.zeppelin.kotlin.context.KotlinReceiver;
 
 public class KotlinReplBuilder {
 
@@ -69,7 +70,7 @@ public class KotlinReplBuilder {
         buildEvaluationConfiguration(),
         new BasicJvmScriptEvaluator());
 
-    KotlinRepl repl = new KotlinRepl(compiler, evaluator, outputDir, maxResult);
+    KotlinRepl repl = new KotlinRepl(compiler, evaluator, ctx, outputDir, maxResult);
     for (String line: codeOnLoad) {
       repl.eval(line);
     }
