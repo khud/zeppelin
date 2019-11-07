@@ -562,7 +562,7 @@ public class ZeppelinConfiguration extends XMLConfiguration {
   }
 
   public boolean isWindowsPath(String path){
-    return path.matches("^[A-Za-z]:\\\\.*");
+    return path.matches("^[A-Za-z]:[\\\\/].*");
   }
 
   public boolean isAnonymousAllowed() {

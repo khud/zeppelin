@@ -29,8 +29,8 @@ import java.util.List;
 import java.util.Map;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.vfs2.FileName;
 import org.apache.commons.vfs2.FileObject;
-import org.apache.commons.vfs2.FileSystemException;
 import org.apache.commons.vfs2.FileSystemManager;
 import org.apache.commons.vfs2.NameScope;
 import org.apache.commons.vfs2.Selectors;
@@ -88,7 +88,19 @@ public class VFSNotebookRepo implements NotebookRepo {
       LOGGER.info("Notebook dir doesn't exist: {}, creating it.",
           rootNotebookFileObject.getName().getPath());
     }
-    this.rootNotebookFolder = rootNotebookFileObject.getName().getPath();
+    this.rootNotebookFolder = getFilePath(rootNotebookFileObject);
+  }
+
+  static private String getFilePath(final FileObject fileObject) {
+    FileName fileName = fileObject.getName();
+    String rootURI = fileName.getRootURI();
+    String root;
+    if (rootURI.endsWith(":/")) { // Windows
+      root = rootURI.substring(8, 10);
+    } else { // *nix
+      root = "";
+    }
+    return root + fileName.getPath();
   }
 
   @Override
@@ -110,7 +122,7 @@ public class VFSNotebookRepo implements NotebookRepo {
         noteInfos.putAll(listFolder(child));
       }
     } else {
-      String noteFileName = fileObject.getName().getPath();
+      String noteFileName = getFilePath(fileObject);
       if (noteFileName.endsWith(".zpln")) {
         try {
           String noteId = getNoteId(noteFileName);
