@@ -169,6 +169,8 @@ public class KotlinInterpreter extends Interpreter {
   }
 
   private List<String> getImportClasspath(String localRepo) {
+    logger.info("LocalRepo: " + localRepo);
+
     List<String> classpath = new ArrayList<>();
     if (localRepo.equals("")) {
       return classpath;
@@ -177,6 +179,7 @@ public class KotlinInterpreter extends Interpreter {
     File repo = new File(localRepo);
     File[] files = repo.listFiles();
     if (files == null) {
+      logger.info("No local repo, Classpath: " + classpath);
       return classpath;
     }
     for (File file : files) {
@@ -184,6 +187,7 @@ public class KotlinInterpreter extends Interpreter {
         classpath.add(file.getAbsolutePath());
       }
     }
+    logger.info("Classpath: " + classpath.toString());
     return classpath;
   }
 }

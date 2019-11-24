@@ -77,6 +77,7 @@ public class KotlinRepl {
 
   @SuppressWarnings("unchecked")
   public KotlinRepl(KotlinReplProperties properties) {
+    logger.info("Building REPL with classpath: " + properties.getClasspath());
     compiler = ReplBuilding.buildCompiler(properties);
     evaluator = ReplBuilding.buildEvaluator(properties);
     ReentrantReadWriteLock stateLock = new ReentrantReadWriteLock();

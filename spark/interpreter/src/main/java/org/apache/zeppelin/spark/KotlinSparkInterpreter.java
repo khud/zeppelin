@@ -86,6 +86,8 @@ public class KotlinSparkInterpreter extends Interpreter {
 
     List<String> classpath = sparkClasspath();
 
+    logger.info("KotlinSparkInterpreter classpath: " + classpath);
+
     String outputDir = null;
     SparkConf conf = jsc.getConf();
     if (conf != null) {
@@ -171,6 +173,7 @@ public class KotlinSparkInterpreter extends Interpreter {
 
   private static List<String> sparkClasspath() {
     String sparkJars = System.getProperty("spark.jars");
+    logger.info("spark.jars: " + sparkJars);
     Pattern isKotlinJar = Pattern.compile("/kotlin-[a-z]*(-.*)?\\.jar");
 
     Stream<File> addedJars = Arrays.stream(Utils.resolveURIs(sparkJars).split(","))
@@ -181,9 +184,13 @@ public class KotlinSparkInterpreter extends Interpreter {
           return new File(s.substring(p + 1));
         });
 
+    logger.info("Added jars: " + sparkJars);
+
     Stream<File> systemJars = Arrays.stream(
         System.getProperty("java.class.path").split(File.pathSeparator))
         .map(File::new);
+
+    logger.info("System jars: " + System.getProperty("java.class.path"));
 
     return Stream.concat(addedJars, systemJars)
         .map(file -> {
